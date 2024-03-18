@@ -1,0 +1,15 @@
+[DEFAULT]
+INPUT_DIRECTORY = {directory of input PDFs}
+OUTPUT_DIRECTORY = {dirctory of ingested PDFs}
+MARQO_ENDPOINT = {marqo api url, typically http://localhost:8882}
+GPT4ALLMODEL = {default LLM}
+GPT4ALLMODELPATH = {path to model; if undedefined assumes /home/{user}/.cache/gpt4all}
+[OPENAI]
+USEOPENAI = {True or False}
+APIKEY = {OpenAI API Key}
+ENDPOINT = {OpenAI Server URL}
+MAXTOKENS = {Maximum context window of the model, typically 2048 tokens}
+[MINIO]
+MINIO_ENDPOINT = {minio Server URL - but this must be in the format localhost:9000}
+MINIO_ACCESS_KEY = {minio access key}
+MINIO_SECRET_KEY = {minio secret key}

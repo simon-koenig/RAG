@@ -1,93 +1,153 @@
-# llm_param_dev
+# Parameter Development AI(T) Chatbot -- Under Developement
+
+This chatbot uses [marqo](https://www.marqo.ai/), [minio](https://min.io/), [OpenaiAPI](https://platform.openai.com/) and an open source LLM. 
+and in particular implements the ideas suggested in [this article](https://medium.com/creator-fund/building-search-engines-that-think-like-humans-e019e6fb6389).
+
+## Requirements
+
+This project was tested under Ubuntu 20.4 with 32GB and 16GB Main Memory - not recommended to run with less than 16GB Main Memory. 
+
+It is assumed that `docker` is installed (tested on version 25.0.3).
+
+## Configuration
+
+Values for the configurations must be defined by copying the configuration template:
+
+    cp config.ini.template config.ini
+    
+And configuration values must be defined, e.g.
+
+    [DEFAULT]
+    INPUT_DIRECTORY = {the directory of where pdfs to be indexed are stored}
+    OUTPUT_DIRECTORY = {the dirctory to which indexed PDFs are moved}
+    MARQO_ENDPOINT = {marqo api url, typically http://localhost:8882}
+    GPT4ALLMODEL = {the GPT4All-compatible model to be loaded}
+    GPT4ALLMODELPATH = {the GPT4All-compatible model path}
+    [OPENAI]
+    USEOPENAI = {If True, then use the defined API endpoint, otherwise default to the local GPT4All model}
+    APIKEY = {API key for the endpoint}
+    ENDPOINT = {URL of the OpenAI-compatible API endpoint}
+    MAXTOKENS = {This is the size of the context window of the selected model, typically 2047}
+    [MINIO]
+    MINIO_ENDPOINT = {minio Server URL - but this must be in the format localhost:9000}
+    MINIO_ACCESS_KEY = {minio access key}
+    MINIO_SECRET_KEY = {minio secret key}
+
+It is assumed that at least one index exists at the MARQO_ENDPOINT. If no index exists, the index ``test`` will automatically be created.
+It is also possible to manually create an index outside of the application using ``curl``:
+
+    curl -X POST "http://{MARQO_ENDPOINT}/indexes/{index_name}"
+
+Note that ``index_name`` must consist of lowercase characters (including numbers and special characters, no spaces).
+
+Ingested documents are stored in a [minio](https://min.io/) instance. The object id is the first sixteen hex characters of the sha256 hash of the file.
+A corresponding bucket (also named ``index_name``) will be created on the minio instance, and files will be uploaded to this bucket.
+If a file already exists in that bucket (based on its sha256 hash), it will not be uploaded but rather will be deleted from the input folder.
+The ``MINIO_ACCESS_KEY`` and ``MINIO_SECRET_KEY`` must be generated on the minio console. Refer to the [minio README](minio.md) for more details.
+
+Note that the GPT4AllMODELPATH is not defined, then the model is assumed to be stored in
+
+    /home/{user}/.cache/gpt4all
+
+Larger models will of course require more memory.
+
+Several GPT4all models are already available here:
+
+    \\s3store7.d03.arc.local\FSDSS1802\LLM\gpt4all_models
+
+If ``USEOPENAI = True`` then the model name will be queried from the supplied ``ENDPOINT``
+
+## Start-up
+
+**Build**
+
+GPT4All depends on the [llama.cpp project](https://github.com/ggerganov/llama.cpp). Please follow the installation instructions there.
+
+Create a suitable virtual environment with Python 3 and install the requirements:
+
+    pip install -r requirements.txt
+
+**Run**
+
+To start ``marqo``:
+
+    docker run --name marqo -it --privileged -p 8882:8882 --add-host host.docker.internal:host-gateway marqoai/marqo:latest
+
+The marqo server will be available on: http://localhost:8882
+
+Note that this docker image relies on "docker-in-docker" and will download a large docker image inside it.
+
+Therefore, once this image is running, it is best to simply use
+
+    docker stop marqo
+    docker start marqo
+
+to stop and start the marqo service.
+
+## Running the PoC
+
+To run the application itself
+
+    ./param-test.sh
 
 
 
-## Getting started
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
 
-## Add your files
+    ./qua.sh
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+The Informed Chatbot PoC will be available on: http://localhost:8511
 
-```
-cd existing_repo
-git remote add origin https://git-service.ait.ac.at/dil-demos/llm_param_dev.git
-git branch -M main
-git push -uf origin main
-```
+To attach to the session:
 
-## Integrate with your tools
+    tmux attach -t qua
 
-- [ ] [Set up project integrations](https://git-service.ait.ac.at/dil-demos/llm_param_dev/-/settings/integrations)
+In the tmux window, click ``ctrl-b d`` to detach from the tmux session.
 
-## Collaborate with your team
+To stop the application
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+    tmux kill-session -t qua
 
-## Test and Deploy
+## Using the PoC
 
-Use the built-in continuous integration in GitLab.
+The active index is selected on the left sidebar. The model available at the endpoint is displayed, but cannot be changed (as changing the endpoint
+requires re-starting streamlit).The configuration of model parameters is also set on the sidebar. 
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+### Query Tab
 
-***
+In the first column, the language of the response (EN or DE) can be selected. Best results occur when the response language and the language of the query are consistent. It is also better if these languages match the language of the material in the source index. But there can be interesting results with a German query against an English index, and vice versa. 
 
-# Editing this README
+Queries should be submitted throught the Query text field. Query responses are not streamed and typically take 1-2 minutes to generate for a local model, and 5 to 10 seconds for a remote (GPU-hosted) model. Reponse times also depend on the model parameters.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Chatbot responses, along with the index sources that prompted the response, will be displayed in the second column. Sources provide minio links to the referenced files, which are downloaded and opened in a PDF app when clicked.
 
-## Suggestions for a good README
+### The Search Tab
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+The user can select the number of desired results (from 1 to 10) with the associated slider control.
 
-## Name
-Choose a self-explaining name for your project.
+In the first column, the user can enter a query, which can be either keywords or natural sentences.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+In the second column, search results will be displayed, along with minio links to the referenced files, which are downloaded and opened in a PDF app when clicked.
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+### The Index Tab
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+In the first column, the user can dynamically create a new marqo index, along with some key indexing paramters [explained here](https://docs.marqo.ai/0.0.21/API-Reference/indexes/).
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+In the second column, it is possible to delete the active index. This action cannot be undone and removes the entire marqo index and the entire associate minio bucket, including all files. Thus the user is prompted to confirm this irrevocable action.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+### The Ingest Tab
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+File uploads will be directed to the active index (selected on the sidebar). In the first column, the ``Ingest`` button will index any PDF files in the configured ``input`` folder and move them to the configured ``ingested`` folder, where a subfolder for the selected index (defined on the sidebar) will be created.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+In the second column, a single file or multiple files can be uploaded either through a file browser or by using the drag-and-drop field. Once files have been selected, click the ``Upload All`` button to start the ingest process. At present only PDF files can be selected this way. Each paragraph is indexed separately. The indexing process takes ca. one second per page. The files are also uploaded to the configured minio endpoint, in a bucket with the same name as the index. If the bucket does not exit, it will be created.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+In both cases, a hash value for the selected file is calculated and checked against existing hashes in the minio repository. An error is reported if the file already exists.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+The text is chunked according to paragraphs by the ``PyMuPDF`` library. As a new feature, the number of tokens in a given chunk is calculated by the OpenAI API ``/embeddings`` endpoint, if the OpenAI compatible model has been selected. With pre-computed token length, we can later be sure that the input prompt plus expected number of output tokens does not exceed the context window of the underlying model.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+The third column allows a file object to be replaced. First, a single file must be uploaded. Then the file for target replacement must be selected. Note that the new file may have the same name as the file to be replaced; however, if the file has not changed, the hash value will remain unchanged and nothing will happen. Otherwise, the old file is removed from the marqo index, from minio, and from the ingested folder, and the new file is uploaded.
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+## Open Issues
 
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+* The type of text splitting and indexing for search queries is not optimal for Chatbot queries

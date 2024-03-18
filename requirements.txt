@@ -1,0 +1,7 @@
+marqo==1.1.1
+# gpt4all==0.3.5
+streamlit==1.28.2
+gpt4all==1.0.12
+# streamlit==1.26.0
+PyMuPDF==1.22.5
+minio==7.1.15
