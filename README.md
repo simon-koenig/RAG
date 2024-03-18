@@ -91,63 +91,7 @@ To run the application itself
     ./param-test.sh
 
 
+## Using the Parameter Testing
 
-
-
-
-    ./qua.sh
-
-The Informed Chatbot PoC will be available on: http://localhost:8511
-
-To attach to the session:
-
-    tmux attach -t qua
-
-In the tmux window, click ``ctrl-b d`` to detach from the tmux session.
-
-To stop the application
-
-    tmux kill-session -t qua
-
-## Using the PoC
-
-The active index is selected on the left sidebar. The model available at the endpoint is displayed, but cannot be changed (as changing the endpoint
-requires re-starting streamlit).The configuration of model parameters is also set on the sidebar. 
-
-### Query Tab
-
-In the first column, the language of the response (EN or DE) can be selected. Best results occur when the response language and the language of the query are consistent. It is also better if these languages match the language of the material in the source index. But there can be interesting results with a German query against an English index, and vice versa. 
-
-Queries should be submitted throught the Query text field. Query responses are not streamed and typically take 1-2 minutes to generate for a local model, and 5 to 10 seconds for a remote (GPU-hosted) model. Reponse times also depend on the model parameters.
-
-Chatbot responses, along with the index sources that prompted the response, will be displayed in the second column. Sources provide minio links to the referenced files, which are downloaded and opened in a PDF app when clicked.
-
-### The Search Tab
-
-The user can select the number of desired results (from 1 to 10) with the associated slider control.
-
-In the first column, the user can enter a query, which can be either keywords or natural sentences.
-
-In the second column, search results will be displayed, along with minio links to the referenced files, which are downloaded and opened in a PDF app when clicked.
-
-### The Index Tab
-
-In the first column, the user can dynamically create a new marqo index, along with some key indexing paramters [explained here](https://docs.marqo.ai/0.0.21/API-Reference/indexes/).
-
-In the second column, it is possible to delete the active index. This action cannot be undone and removes the entire marqo index and the entire associate minio bucket, including all files. Thus the user is prompted to confirm this irrevocable action.
-
-### The Ingest Tab
-
-File uploads will be directed to the active index (selected on the sidebar). In the first column, the ``Ingest`` button will index any PDF files in the configured ``input`` folder and move them to the configured ``ingested`` folder, where a subfolder for the selected index (defined on the sidebar) will be created.
-
-In the second column, a single file or multiple files can be uploaded either through a file browser or by using the drag-and-drop field. Once files have been selected, click the ``Upload All`` button to start the ingest process. At present only PDF files can be selected this way. Each paragraph is indexed separately. The indexing process takes ca. one second per page. The files are also uploaded to the configured minio endpoint, in a bucket with the same name as the index. If the bucket does not exit, it will be created.
-
-In both cases, a hash value for the selected file is calculated and checked against existing hashes in the minio repository. An error is reported if the file already exists.
-
-The text is chunked according to paragraphs by the ``PyMuPDF`` library. As a new feature, the number of tokens in a given chunk is calculated by the OpenAI API ``/embeddings`` endpoint, if the OpenAI compatible model has been selected. With pre-computed token length, we can later be sure that the input prompt plus expected number of output tokens does not exceed the context window of the underlying model.
-
-The third column allows a file object to be replaced. First, a single file must be uploaded. Then the file for target replacement must be selected. Note that the new file may have the same name as the file to be replaced; however, if the file has not changed, the hash value will remain unchanged and nothing will happen. Otherwise, the old file is removed from the marqo index, from minio, and from the ingested folder, and the new file is uploaded.
-
-## Open Issues
-
-* The type of text splitting and indexing for search queries is not optimal for Chatbot queries
+The User has to update setting by giving (y/n) answers via CLI interface. Then a predefined query is run against the chosen index with the LLLM, marqo and minio DB endpoints defined in config.ini. 
+Output is printed to the CLI.
