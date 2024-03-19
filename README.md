@@ -84,7 +84,7 @@ Therefore, once this image is running, it is best to simply use
 
 to stop and start the marqo service.
 
-## Running the PoC
+## Running the Parameter Test
 
 To run the application itself
 
