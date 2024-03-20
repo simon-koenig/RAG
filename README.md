@@ -95,3 +95,8 @@ To run the application itself
 
 The User has to update setting by giving (y/n) answers via CLI interface. Then a predefined query is run against the chosen index with the LLLM, marqo and minio DB endpoints defined in config.ini. 
 Output is printed to the CLI.
+
+## Open Issues
+
+The same query in english and german retrieves divergent sources from the vector db. Marqo might calculate less similarity if language of datapoint is different to language in query. 
+Something is wrong while retrieving. The scores are wa to high. ( ~ 8 ). Solved: Lexical search yields higher score rates.

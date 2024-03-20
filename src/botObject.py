@@ -84,6 +84,14 @@ class Assistant:
     system_prompt_de: str = "Sie sind ein hilfreicher Assistent. Sie sollen so hilfreich wie möglich sein und nur sachliche Informationen liefern. Kontextinformationen finden Sie im folgenden Absätze."
     system_prompt_en_token_count: int = 30
     system_prompt_de_token_count: int = 38
+    num_ref: int = 3
+    answer_size: int = 256
+    repeat_pen: float = 1.0
+    presence_pen: float = 1.0
+    model_temp: float = 0.1
+    query_type: str = "Lexical"
+    lang: str = "EN"
+    query_threshold: float = 0.6
 
     def get_config(self, config_file):
         # Read the configuration file
@@ -114,8 +122,8 @@ class Assistant:
             # Here the current indices and models are retrieved.
             self.indices, self.marqo_models = self.putIndices()
             # Select default index and marqo model
-            self.marqo_model = self.marqo_models[0]  # Can be tuned
-            self.index = self.indices[0]  # Can be tuned
+            self.marqo_model = self.marqo_models[0]  # TODO:  Can be tuned
+            self.index = self.indices[0]  # TODO: Can be tuned. Can it really?
 
             self.minioclient = self.get_minio_client(
                 self.MINIO_ENDPOINT, self.MINIO_ACCESS_KEY, self.MINIO_SECRET_KEY
@@ -427,18 +435,34 @@ class Assistant:
     ### Combine backround, prompt and query to the llm and get an answer.
     ###
 
-    def submitQuery(self, query):
+    def submitQuery(
+        self,
+        query="Tell user he did not submit a query!",
+        llm_params={},
+        update_params=False,
+    ):
         # TODO: Submit query to LLM and against Index. Geneate Output.
         # TODO: Move these attributes elsewhere
-        num_ref = 3
-        answer_size = 256
-        repeat_pen = 1.0
-        presence_pen = 1.0
-        model_temp = 0.1
-        query_type = "Lexical"
-        lang = "EN"
-        query_threshold = 0.6
-        query = "How many bengal tigers live in the indian subcontinent now?"
+        if update_params is True:
+            num_ref = llm_params["num_ref"]
+            answer_size = llm_params["answer_size"]
+            repeat_pen = llm_params["repeat_pen"]
+            presence_pen = llm_params["presence_pen"]
+            model_temp = llm_params["model_temp"]
+            query_type = llm_params["query_type"]
+            lang = llm_params["lang"]
+            query_threshold = llm_params["query_threshold"]
+        else:
+            num_ref = self.num_ref
+            answer_size = self.answer_size
+            repeat_pen = self.repeat_pen
+            presence_pen = self.presence_pen
+            model_temp = self.model_temp
+            query_type = self.query_type
+            lang = self.lang
+            query_threshold = self.query_threshold
+
+        # query = "How many bengal tigers live in the indian subcontinent now?"
 
         if query != "":
             if query_type == "Semantic":
@@ -525,18 +549,18 @@ class Assistant:
                     # build an new query structure
                     # it consists of prompt, background, query
                     if lang == "EN":
-                        prompt = st.session_state.system_prompt_en
+                        prompt = self.system_prompt_en
                         # Pre-computed number of tokens of the English background and instructions prompt
-                        numtokens += st.session_state.system_prompt_en_token_count
+                        numtokens += self.system_prompt_en_token_count
                         query = (
                             "Given this context information and not prior knowledge, answer the following user query. "
                             + query
                         )
                         numtokens += 16
                     elif lang == "DE":
-                        prompt = st.session_state.system_prompt_de
+                        prompt = self.system_prompt_de
                         # Pre-computed  number of tokens of the German background and instructions prompt
-                        numtokens += st.session_state.system_prompt_de_token_count
+                        numtokens += self.system_prompt_de_token_count
                         query = (
                             "Beantworten Sie anhand dieser Kontextinformationen und ohne Vorkenntnisse die folgende Benutzeranfrage. "
                             + query
@@ -587,8 +611,8 @@ class Assistant:
                             result = report
                         print("Response: \n")
                         pprint.pprint(result)
-                        print("Sourcers: \n")
-                        pprint.pprint(sources)
+                        print("Sources: \n")
+                        pprint.pprint(sources, width=100)
                 else:
                     print(
                         "No results over the threshold ("
@@ -668,13 +692,26 @@ def main():
 
     # Create test index for fun
 
-    A.createIndex(
-        index_name="test_index", split_method="sentence", distance_metric="L1"
-    )
+    # A.createIndex(
+    #    index_name="test-index", split_method="sentence", distance_metric="cosinesimil"
+    # )
     pprint.pprint(A.getIndices(), width=20)
     pprint.pprint(A.getCurrentIndex(), width=20)
     # Get files from index
     pprint.pprint(A.getObjectsinBucket("animal-facts"))
+    A.submitQuery()
+    llm_params = {
+        "num_ref": 3,
+        "answer_size": 24,
+        "repeat_pen": 1.0,
+        "presence_pen": 1.0,
+        "model_temp": 0.1,
+        "query_type": "Lexical",
+        "lang": "EN",
+        "query_threshold": 0.6,
+    }
+
+    A.submitQuery(llm_params=llm_params, update_params=True)
 
 
 if __name__ == "__main__":
