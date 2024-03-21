@@ -99,4 +99,7 @@ Output is printed to the CLI.
 ## Open Issues
 
 The same query in english and german retrieves divergent sources from the vector db. Marqo might calculate less similarity if language of datapoint is different to language in query. 
-Something is wrong while retrieving. The scores are wa to high. ( ~ 8 ). Solved: Lexical search yields higher score rates.
+
+Something is wrong while retrieving. The scores are way to high. ( ~ 8 ). Solved: Lexical search yields higher score rates.
+
+endpoint/chat/completions: https://www.codecademy.com/learn/intro-to-open-ai-gpt-api/modules/intro-to-open-ai-gpt-api/cheatsheet

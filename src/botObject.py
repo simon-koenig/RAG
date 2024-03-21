@@ -28,6 +28,8 @@ import datetime
 import hashlib
 import os
 import pprint
+import re
+import shutil
 from dataclasses import dataclass
 
 import fitz
@@ -65,6 +67,10 @@ def escape_markdown(text):
     return text
 
 
+def word_count(text):
+    return len(re.findall(r"\w+", text))
+
+
 ###
 ### Make Assistant Class
 ###
@@ -79,11 +85,11 @@ class Assistant:
     """
 
     config_file: str
-    chunking_params: list
+    chunking_params: dict  # TODO: This should be index specific.
     system_prompt_en: str = "You are a helpful assistant. You are designed to be as helpful as possible while providing only factual information. Context information is given in the following paragraphs."
     system_prompt_de: str = "Sie sind ein hilfreicher Assistent. Sie sollen so hilfreich wie möglich sein und nur sachliche Informationen liefern. Kontextinformationen finden Sie im folgenden Absätze."
-    system_prompt_en_token_count: int = 30
-    system_prompt_de_token_count: int = 38
+    system_prompt_en_token_count: int = word_count(system_prompt_en)
+    system_prompt_de_token_count: int = word_count(system_prompt_de)
     num_ref: int = 3
     answer_size: int = 256
     repeat_pen: float = 1.0
@@ -129,10 +135,10 @@ class Assistant:
                 self.MINIO_ENDPOINT, self.MINIO_ACCESS_KEY, self.MINIO_SECRET_KEY
             )
 
-    def setParams(self, chunking_params):
-        self.chunk_method = chunking_params[0]
-        self.chunk_size = chunking_params[1]
-        self.chunk_overlap = chunking_params[2]
+    def setChunkingParams(self, chunking_params):
+        self.chunk_method = chunking_params["chunk_method"]
+        self.chunk_size = chunking_params["chunk_size"]
+        self.chunk_overlap = chunking_params["chunk_overlap"]
 
     def get_model(self, endpoint):
         # Get the model name from the OpenAI endpoint
@@ -168,15 +174,25 @@ class Assistant:
             region="ait",
         )
 
-    def createIndex(self, index_name, split_method, distance_metric):
-        index_name = index_name.lower()
-        if index_name in self.indices:
-            print(f"Index already exists: {index_name} ")
+    def createIndex(self, name, settings):
+        try:
+            split_method = settings["split_method"]
+            distance_metric = settings["distance_metric"]
+            model = settings["model"]
+
+        except:
+            print(
+                f"Settings could not be parsed to create a new index with name: {index_name}"
+            )
+
+        name = name.lower()
+        if name in self.indices:
+            print(f"Index already exists: {name} ")
         else:
             index_settings = {
                 "index_defaults": {
                     "treat_urls_and_pointers_as_images": False,
-                    "model": self.marqo_model,
+                    "model": model,
                     "normalize_embeddings": True,
                     "text_preprocessing": {
                         "split_length": 2,
@@ -193,17 +209,43 @@ class Assistant:
                 "number_of_replicas": 1,
             }
             try:
-                self.mq.create_index(index_name, settings_dict=index_settings)
-                print("New index created: " + index_name)
+                self.mq.create_index(name, settings_dict=index_settings)
+                print("New index created: " + name)
                 # force an update of the index selectbox
                 self.indices, self.marqo_models = self.putIndices()
-                self.index = index_name  # set new index to current index
+                self.index = name  # set new index to current index
             except:
                 print(
-                    "Failed to created new index: "
-                    + index_name
-                    + " - check marqo endpoint!"
+                    "Failed to created new index: " + name + " - check marqo endpoint!"
                 )
+
+    def deleteIndex(self, name):
+        # Delete index by name
+        try:
+            # get the list of objects in the present bucket
+            try:
+                objects = self.minioclient.list_objects(name)
+                # remove all objects in the bucket
+                for object in objects:
+                    self.minioclient.remove_object(name, object.object_name)
+                # now remove the bucket itself
+                self.minioclient.remove_bucket(name)
+            except:
+                print(
+                    "No minio bucket found. Index deletion occurred before any files were added"
+                )
+            # now remove the marqo index
+            self.mq.delete_index(name)
+            # now remove the files -- For now, no need to delete the files locally.
+            # output_directory = os.path.join(self.OUTPUT_DIRECTORY, name)
+            # if os.path.exists(output_directory):
+            #     shutil.rmtree(output_directory)
+            # else:
+            #     print("No associated file directories found and hence none deleted.")
+
+            print(f" Sucessfuylly deleted Index: {name}")
+        except:
+            print("Unable to delete: " + name)
 
     # Returns marqo index and marqo models
     def putIndices(self):
@@ -261,7 +303,7 @@ class Assistant:
         return [chunk for chunk in splitted_text]
 
     # Upload file(s) to index
-    def upload(self, filename, input_file, index):
+    def upload(self, filename, input_file, index, chunking_params):
         # Now compute the hash value of the file, take the first 16 characters as a unique identifier
         fuid = hash_bytestr_iter(
             file_as_blockiter(open(input_file, "rb")), hashlib.sha256()
@@ -276,13 +318,13 @@ class Assistant:
             self.minioclient.stat_object(index, fuid)
             found = True
             print("An object already exists with this id: " + fuid)
-            st.write("Aborted: " + filename + " already exists in " + index)
+            print("Aborted: " + filename + " already exists in " + index)
         except:
             print("A new object will be added to minio with id: " + fuid)
 
         if found:
             # remove the file from the ingest directory
-            os.remove(input_file)
+            # os.remove(input_file)
             return False
         else:
             # now upload this file to the minio endpoint
@@ -296,13 +338,12 @@ class Assistant:
             with fitz.open(input_file) as doc:
                 pgnum = 1
                 for page in doc:
-                    # TODO: Maybe adapt this to be sentences not paragraphs ("blocks")
                     # Set chunking variables
                     chunks = self.chunkText(
                         text=page.get_text(),
-                        method="recursive",
-                        chunk_size=1024,
-                        chunk_overlap=256,
+                        method=chunking_params["chunk_method"],
+                        chunk_size=chunking_params["chunk_size"],
+                        chunk_overlap=chunking_params["chunk_overlap"],
                     )
                     paranum = 1
                     for chunk in chunks:
@@ -323,7 +364,7 @@ class Assistant:
                             # we are only interested in paragraphs with a certain number of characters (not just numbers), but also not too long
                             if letters:
                                 # TODO: Make with token count function by openAI API get_token_count
-                                tokens = len(chunk) / 4
+                                tokens = word_count(chunk)
                                 try:
                                     self.mq.index(index).add_documents(
                                         [
@@ -354,7 +395,7 @@ class Assistant:
             return True
 
     # Ingest files to index
-    def ingestFromDirectory(self, index=""):
+    def ingestFromDirectory(self, settings, index=""):
         # Set default index to be current self.index
         if index == "":
             index = self.index
@@ -364,7 +405,9 @@ class Assistant:
         try:
             # Ingest files from INPUT_DIRECTORY
             directory = os.fsencode(self.INPUT_DIRECTORY)
+            print(f"Directory for ingest: {directory}")
             files = os.listdir(directory)
+            print(f"Files for ingest: {files}")
             numentries = len(files)
             if numentries < 1:
                 print("No files available in the input folder.")
@@ -377,20 +420,26 @@ class Assistant:
                     print(f"Ingesting file:\n{filename}")
                     if filename.endswith(".pdf"):
                         input_file = os.path.join(self.INPUT_DIRECTORY, filename)
-                        output_directory = os.path.join(self.OUTPUT_DIRECTORY, index)
-                        if not (os.path.exists(output_directory)):
-                            os.makedirs(output_directory)
-                        output_file = os.path.join(
-                            self.OUTPUT_DIRECTORY, index, filename
+                        # ******** For now no moving from input to output director *********
+                        # output_directory = os.path.join(self.OUTPUT_DIRECTORY, index)
+                        # if not (os.path.exists(output_directory)):
+                        #     os.makedirs(output_directory)
+                        # output_file = os.path.join(
+                        #     self.OUTPUT_DIRECTORY, index, filename
+                        # )
+                        # Perform Upload
+                        self.upload(filename, input_file, index, settings)
+                    # move the file to the output directory
+                    # os.rename(input_file, output_file)
+                    else:
+                        print(
+                            f"No .pdf provided. File not ingested into index: {index}"
                         )
-                        if self.upload(filename, input_file, index):
-                            # move the file to the output directory
-                            os.rename(input_file, output_file)
                 print("Ingest completed.")
         except:
             print("No ingest performed!")
 
-    def ingestFiles(self, upload_files, index=""):
+    def ingestFiles(self, upload_files, settings, index=""):
         # Set default index to be current self.index
         if index == "":
             index = self.index
@@ -411,20 +460,35 @@ class Assistant:
                     # write to the ingested directory
                     with open(output_file, "wb") as f:
                         f.write(file.getbuffer())
-                    if self.upload(filename, file, index):
+                    if self.upload(filename, file, index, settings):
                         print(f"File ingested: {filename}")
 
         except:
             print(f" Ingest did not work for {filename}. Only pdfs are accepted!")
 
-    def modifyPrompt(self, text, lang="en"):
-        if lang == "en":
-            self.system_prompt_en = text
-            self.system_prompt_en_token_count += len(text) / 4
+    def deleteFiles(self, index):
+        # Deletes all files in index
+        objectkeys = {}
+        all = self.mq.index(index).search(q="", limit=1000, filter_string="index:false")
+        if len(all["hits"]) < 1:
+            print("Index is empty, there is nothing to delete")
+        else:
+            delete_ids = []
+            for hit in all["hits"]:
+                delete_ids.append(hit["_id"])
+                # Delete object from minio with fuid
+                self.minioclient.remove_object(index, hit["fuid"])
+                # Deletes documents on the delete_ids list
+                self.mq.index(index).delete_documents(ids=hit["_id"])
 
-        elif lang == "de":
+    def modifyPrompt(self, text, lang="EN"):
+        if lang == "EN":
+            self.system_prompt_en = text
+            self.system_prompt_en_token_count = word_count(text)
+
+        elif lang == "DE":
             self.system_prompt_de = text
-            self.system_prompt_de_token_count += len(text) / 4
+            self.system_prompt_de_token_count = word_count(text)
 
         else:
             print(
@@ -442,16 +506,60 @@ class Assistant:
         update_params=False,
     ):
         # TODO: Submit query to LLM and against Index. Geneate Output.
-        # TODO: Move these attributes elsewhere
         if update_params is True:
-            num_ref = llm_params["num_ref"]
-            answer_size = llm_params["answer_size"]
-            repeat_pen = llm_params["repeat_pen"]
-            presence_pen = llm_params["presence_pen"]
-            model_temp = llm_params["model_temp"]
-            query_type = llm_params["query_type"]
-            lang = llm_params["lang"]
-            query_threshold = llm_params["query_threshold"]
+            num_ref = (
+                llm_params["num_ref"]
+                if llm_params.get("num_ref", False)
+                else self.num_ref
+            )
+
+            answer_size = (
+                llm_params["answer_size"]
+                if llm_params.get("answer_size", False)
+                else self.answer_size
+            )
+
+            repeat_pen = (
+                llm_params["repeat_pen"]
+                if llm_params.get("repeat_pen", False)
+                else self.repeat_pen
+            )
+
+            presence_pen = (
+                llm_params["presence_pen"]
+                if llm_params.get("presence_pen", False)
+                else self.presence_pen
+            )
+
+            model_temp = (
+                llm_params["model_temp"]
+                if llm_params.get("model_temp", False)
+                else self.model_temp
+            )
+            query_type = (
+                llm_params["query_type"]
+                if llm_params.get("query_type", False)
+                else self.query_type
+            )
+            lang = llm_params["lang"] if llm_params.get("lang", False) else self.lang
+            query_threshold = (
+                llm_params["query_threshold"]
+                if llm_params.get("query_threshold", False)
+                else self.query_threshold
+            )
+            system_prompt_de = (
+                llm_params["system_prompt_de"]
+                if llm_params.get("system_prompt_de", False)
+                else self.system_prompt_de
+            )
+            system_prompt_en = (
+                llm_params["system_prompt_en"]
+                if llm_params.get("system_prompt_en", False)
+                else self.system_prompt_en
+            )
+
+            system_prompt_de_token_count = word_count(system_prompt_de)
+            system_prompt_en_token_count = word_count(system_prompt_en)
         else:
             num_ref = self.num_ref
             answer_size = self.answer_size
@@ -461,6 +569,10 @@ class Assistant:
             query_type = self.query_type
             lang = self.lang
             query_threshold = self.query_threshold
+            system_prompt_de = self.system_prompt_de
+            system_prompt_en = self.system_prompt_en
+            system_prompt_de_token_count = self.system_prompt_de_token_count
+            system_prompt_en_token_count = self.system_prompt_en_token_count
 
         # query = "How many bengal tigers live in the indian subcontinent now?"
 
@@ -487,7 +599,7 @@ class Assistant:
                 # Initialize token count with the expected answer size and the query length
                 # OpenAI suggests that, on average, there are four characters per token
                 # https://help.openai.com/en/articles/4936856-what-are-tokens-and-how-to-count-them
-                numtokens = answer_size + (len(query) / 4)
+                numtokens = answer_size + word_count(query)
                 if numhits > num_ref:
                     numhits = num_ref
                 num_sources = 0
@@ -510,7 +622,8 @@ class Assistant:
                             )
                             durldict[fuid] = durl
                         # Add the pre-calculated token length of the source text
-                        # In this manner, we ensure that the context window of model is not exceeded by the number tokens in the sources, which was counted at ingest
+                        # In this manner, we ensure that the context window of
+                        # is not exceeded by the number tokens in the sources, which was counted at ingest
                         numtokens += results["hits"][i]["tokens"]
                         sourcetext = results["hits"][i]["Text"]
                         sourcetext = escape_markdown(sourcetext)
@@ -549,28 +662,29 @@ class Assistant:
                     # build an new query structure
                     # it consists of prompt, background, query
                     if lang == "EN":
-                        prompt = self.system_prompt_en
+                        prompt = system_prompt_en
                         # Pre-computed number of tokens of the English background and instructions prompt
-                        numtokens += self.system_prompt_en_token_count
+                        numtokens += system_prompt_en_token_count
                         query = (
                             "Given this context information and not prior knowledge, answer the following user query. "
                             + query
                         )
-                        numtokens += 16
+                        numtokens += word_count(query)
                     elif lang == "DE":
-                        prompt = self.system_prompt_de
+                        prompt = system_prompt_de
                         # Pre-computed  number of tokens of the German background and instructions prompt
-                        numtokens += self.system_prompt_de_token_count
+                        numtokens += system_prompt_de_token_count
                         query = (
                             "Beantworten Sie anhand dieser Kontextinformationen und ohne Vorkenntnisse die folgende Benutzeranfrage. "
                             + query
                         )
-                        numtokens += 28
+                        numtokens += word_count(query)
                     messages = [
                         {"role": "user", "content": prompt},
                         {"role": "assistant", "content": background},
                         {"role": "user", "content": query},
                     ]
+                    print(f"The prompt is = {prompt}")
                     print("Generating response...")
                     # Use local or openAPI model.
                     # if uselocal:
@@ -603,7 +717,9 @@ class Assistant:
                         ).json()
                         print("Received response...")
                         if "choices" in report:
-                            if len(report["choices"]) > 0:
+                            if (
+                                len(report["choices"]) > 0
+                            ):  # TODO: We are always taking the first choice.
                                 result = report["choices"][0]["message"]["content"]
                             else:
                                 result = "No result generated!"
@@ -611,8 +727,8 @@ class Assistant:
                             result = report
                         print("Response: \n")
                         pprint.pprint(result)
-                        print("Sources: \n")
-                        pprint.pprint(sources, width=100)
+                        # print("Sources: \n")
+                        # pprint.pprint(sources, width=100)
                 else:
                     print(
                         "No results over the threshold ("
