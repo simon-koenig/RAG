@@ -6,6 +6,9 @@ sys.path.insert(
 from src.botObject import Assistant
 
 
+##
+## TODO: Make list of possible entry values for parameters.
+##
 def main():
     print("************ Main ************")
     llm_params = {
@@ -20,9 +23,6 @@ def main():
         "system_prompt_en": "You are a helpful assistant. Use soccer analogies in your response please.",
         "system_prompt_de": "Sie sind ein hilfreicher Assistent. Sie sollen so hilfreich wie möglich sein und nur sachliche Informationen liefern. Kontextinformationen finden Sie im folgenden Absätze.",
     }
-    ##
-    ## TODO: Make list of possible entry values for parameters.
-    ##
     chunking_params = {
         "chunk_size": 1024,
         "chunk_overlap": 128,

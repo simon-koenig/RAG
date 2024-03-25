@@ -182,7 +182,7 @@ class Assistant:
 
         except:
             print(
-                f"Settings could not be parsed to create a new index with name: {index_name}"
+                f"Settings could not be parsed to create a new index with name: {name}"
             )
 
         name = name.lower()
