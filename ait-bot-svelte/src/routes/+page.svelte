@@ -3,9 +3,8 @@
 	import { onMount } from 'svelte';
 	/** @type {import('./$types').PageData} */
 	export let data;
-
-	let messages = [];
 	let sources = [];
+	let messages = [];
 	let background = "";
 	let query = '';
 	let OPENAIMODEL = "mixtral";
@@ -13,6 +12,8 @@
 	let MARQO_ENDPOINT = "http://10.103.251.100:8882";
 	let APIKEY = "N/A";
 	let INDEX = "animal-facts"
+	// Define user prompt 
+	let prompt = "You are designed to be helpful while providing only factual information. If you are uncertain, state it and explain why. Give an answer based on information in the following paragraphs."
   
 	const addMessage = ( role, content) => {
 	  messages = [...messages, { role, content }];
@@ -23,6 +24,7 @@
 	};
 
 	const sendMessage = async () => {
+	let messages = [];
 	  addMessage('user', query);
 
 	  // Do the marqo lookup here
@@ -30,7 +32,7 @@
 	  const data = {
 		model: OPENAIMODEL,
 		messages: [
-					{"role": "user", "content": "You are a helpful assistant."},
+					{"role": "user", "content": prompt},
 					{"role": "assistant", "content": background},
 					{"role": "user", "content": query}
 			]
@@ -101,6 +103,7 @@
   
 	if (numhits > 0) {
 	  let num_sources = 0;
+	  let sources = 0;
 	  for (let i = 0; i < numhits && i < num_ref; i++) {
 		let score = parseFloat(results.hits[i]._score);
 		if (score >= query_threshold) {
@@ -134,7 +137,6 @@
 			
 			let refstring = `[${results.hits[i].Title}, page ${results.hits[i].Page}, paragraph ${results.hits[i].Paragraph}]\n`;
 			let source =  `${i + 1}. ${sourcetext} [${refstring}] (Score: ${scorestring})` + "\n";
-			sources += source;
 			addSource(source);
 			background += results.hits[i].Text + " ";
 			num_sources++;
@@ -184,6 +186,7 @@
 		{/each}
 		</div>
 	</div>
+	
 
 
   </main>
