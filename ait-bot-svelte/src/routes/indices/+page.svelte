@@ -17,7 +17,7 @@
  */
 let objects = []; 
 
-  // Function to list objects in a bucket
+ // Function to list objects in a bucket
   async function listObjects() {
     try {
         const response = await fetch("api/store", {
@@ -37,6 +37,7 @@ let objects = [];
     }
 }
 
+
 let contents = [];
 const showBucketContents = async (bucketName) => {
 	try {
@@ -49,8 +50,9 @@ const showBucketContents = async (bucketName) => {
 		  body: JSON.stringify(bucketName)
 		});
 		console.log(response);
-		const stream = await response;
+		const stream = await response.body.getReader;
 		console.log(stream);
+		console.log(stream.read())
 
 		// Minio List Objects returns a stream containing all objects in a bucket
 		stream.on("data", obj => {
@@ -89,7 +91,9 @@ const showBucketContents = async (bucketName) => {
 		<div class="box">
 			<ul>
 			{#each objects as object}
-				<li on:click={() => showBucketContents(object)}>{object}</li>
+				<li>
+					<button on:click={() => showBucketContents(object)}>{object}</button>
+				</li>
 			{/each}
 			</ul>
 		</div>

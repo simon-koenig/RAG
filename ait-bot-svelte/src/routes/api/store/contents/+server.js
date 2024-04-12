@@ -28,8 +28,8 @@ export async function POST(event){
         let INDEX = await event.request.json();
         console.log(INDEX);
         const objects = minioClient.listObjects(INDEX,'');
-        console.log(objects);
-        return objects
+        console.log(typeof(objects));
+        return new Response(JSON.stringify(objects))
      }
      catch(error)
      {
