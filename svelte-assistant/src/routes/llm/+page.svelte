@@ -1,5 +1,8 @@
 <script lang="ts">
 	import MarqoResultCard from '$lib/components/MarqoResultCard.svelte';
+	import QuestionsSelect from '$lib/components/QuestionsSelect.svelte';
+	import ShowWarnings from '$lib/components/ShowWarnings.svelte';
+
 	const { data } = $props();
 
 	let defaultModel =
@@ -13,8 +16,16 @@
 	let isFetching = $state(false);
 	let sources = $state();
 
+	const exampleQuestions = [
+	"How to improve data accuracy?",
+	"Ensuring compliance with industry standards?",
+	"Optimizing research process for efficiency?"
+];
 
-
+	const exampleWarnings = [ "Warning 1", 
+					"Warning 2",
+					"Warning 3"
+				 ];
 
 
 	const fetchCompletion = async () => {
@@ -31,7 +42,8 @@
 			const searchData = {
 			q: query,
 			searchableAttributes: ["Text"],
-			searchMethod: 'TENSOR'
+			searchMethod: 'TENSOR',
+
 		};
 
 		const response = await fetch("api/marqo", {
@@ -140,11 +152,11 @@
 			{/each}
 		</select>
 	</label> -->
-	<label for="prompt" class="text-md flex flex-col gap-1"
+	<label for="prompt" class="text-md flex flex-col gap-1 "
 		>Ask a Question/ Frag mich etwas!
 		<input
 			onkeypress={(e) => e.key === 'Enter' && fetchCompletion()}
-			class="w-80 border px-2 py-1 rounded-lg"
+			class="w-80 border-2 border-gray-400 px-2 py-1 rounded-lg"
 			bind:value={query}
 			spellcheck="false"
 			name="prompt"
@@ -175,9 +187,19 @@
 	{/if} -->
 </div>
 
+<div class="flex gap-4 border-gray-400" >
+	<div class="float-left">
+	<QuestionsSelect questions={exampleQuestions} />
+	</div>
+
+</div>
+
+
+
+
 <div class="flex gap-4">
 	<div class="w-1/2">
-		<div class="mt-12 border rounded-lg p-5 mx-auto max-w-[800px]">
+		<div class="mt-12 border border-gray-400 rounded-lg p-5 mx-auto max-w-[800px]">
 			<h2 class="border-b pb-1 text-rose-900">Sources</h2>
 			<br />
 			{#if sources}
@@ -191,10 +213,11 @@
 		</div>
 	</div>
 	<div class="w-1/2">
-		<div class="mt-12 border rounded-lg p-5 mx-auto max-w-[800px]">
+		<div class="mt-12 border border-gray-400 rounded-lg p-5 mx-auto max-w-[800px]">
 			<h2 class="border-b pb-1 text-rose-900">Response</h2>
 			<br />
 			{answer}
 		</div>
 	</div>
+	
 </div>
