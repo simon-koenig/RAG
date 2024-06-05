@@ -220,3 +220,87 @@ class RagPipe:
         print("Response: \n")
         pprint.pprint(result)
         return result
+
+
+class RagElement:
+    def __init__(self):
+        self.query = None
+        self.answer = None
+        self.ground_truth = None
+        self.contexts = None
+        self.contexts_ids = None
+        self.goldPassages = None
+        self.goldPassages_ids = None
+
+    def setQuery(self, query):
+        self.query = query
+
+    def getQuery(self):
+        return self.query
+
+    def setAnswer(self, answer):
+        self.answer = answer
+
+    def getAnswer(self):
+        return self.answer
+
+    def setGroundTruth(self, ground_truth):
+        self.ground_truth = ground_truth
+
+    def getGroundTruth(self):
+        return self.ground_truth
+
+    def setContexts(self, contexts):
+        self.contexts = contexts
+
+    def getContexts(self):
+        return self.contexts
+
+    def setContextsIds(self, contexts_ids):
+        self.contexts_ids = contexts_ids
+
+    def getContextsIds(self):
+        return self.contexts_ids
+
+    def setGoldPassages(self, goldPassages):
+        self.goldPassages = goldPassages
+
+    def getGoldPassages(self):
+        return self.goldPassages
+
+    def setGoldPassagesIds(self, goldPassages_ids):
+        self.goldPassages_ids = goldPassages_ids
+
+    def getGoldPassagesIds(self):
+        return self.goldPassages_ids
+
+    def getRagElement(self):
+        return {
+            "query": self.query,
+            "answer": self.answer,
+            "ground_truth": self.ground_truth,
+            "contexts": self.contexts,
+            "contexts_ids": self.contexts_ids,
+            "goldPassages": self.goldPassages,
+            "goldPassages_ids": self.goldPassages_ids,
+        }
+
+    def setRagElement(self, ragElement):
+        self.query = ragElement["query"]
+        self.answer = ragElement["answer"]
+        self.ground_truth = ragElement["ground_truth"]
+        self.contexts = ragElement["contexts"]
+        self.contexts_ids = ragElement["contexts_ids"]
+        self.goldPassages = ragElement["goldPassages"]
+        self.goldPassages_ids = ragElement["goldPassages_ids"]
+        return self
+
+    def resetRagElement(self):
+        self.query = None
+        self.answer = None
+        self.ground_truth = None
+        self.contexts = None
+        self.contexts_ids = None
+        self.goldPassages = None
+        self.goldPassages_ids = None
+        return self
