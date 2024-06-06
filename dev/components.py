@@ -280,6 +280,14 @@ class RagPipe:
         # check if gold passages available
         if goldPassages is None:
             scores = {}
+            # If no contexts are provided, retrieve top 3 documents from index based on query
+            # for each document.
+
+            if (
+                contexts is None
+            ):  # Extend context to list of nones to match queries length
+                contexts = [None] * len(queries)
+
             for query, context in zip(queries, contexts):
                 if context is None:
                     context, ids = self.retrieveDocuments(query, 3)
