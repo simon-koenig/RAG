@@ -4,6 +4,7 @@ import re
 
 import marqo
 import requests
+from datasets import load_dataset
 from sentence_transformers import SentenceTransformer
 
 
@@ -135,11 +136,13 @@ class VectorStore:
 
         # Get retrieved text.
         contexts = [response["hits"][i]["text"] for i in range(len(response["hits"]))]
-        pprint.pprint(contexts)
+        ids = [response["hits"][i]["id"] for i in range(len(response["hits"]))]
+        ## pprint.pprint(contexts)
         background = ""
         for text in contexts:
             background += text + " "
-        return background
+
+        return background, contexts, ids
 
     def getIndexes(self):
         return self.mq.get_indexes()["results"]
@@ -259,7 +262,7 @@ class RagPipe:
     def answerQuery(self, query):
         # Retrieve top k documents from indexName based on query
 
-        background = self.DB.getBackground(query, 3)
+        background, contexts, ids = self.DB.getBackground(query, 3)
         messages = [
             {"role": "user", "content": self.PROMPT},
             {"role": "assistant", "content": background},
@@ -267,7 +270,7 @@ class RagPipe:
         ]
 
         result = self.sendToLLM(messages)
-        return result
+        return result, contexts, ids
 
     def evaluate_context_relevance(
         self, queries, contexts=None, ids=None, goldPassages=None
@@ -433,86 +436,121 @@ class RagPipe:
 
         return similarity_score
 
+    def run(
+        self,
+        questions,
+        ground_truths,
+        corpus_list,
+        newIngest=True,
+        maxDocs=1000000,
+        maxQueries=1000000,
+    ):
+        # Run RAG pipeline for questions, ground_truhts and corpus_list
+        if newIngest:
+            self.DB.emptyIndex()
+            print("Index emptied")
+            print("Start indexing documents. Please wait. ")
+            self.DB.indexDocuments(documents=corpus_list, maxDocs=maxDocs)
+            print(f"Done! Index Stats:  {self.DB.getIndexStats()}")
 
-class RagElement:
-    def __init__(self):
-        self.query = None
-        self.answer = None
-        self.ground_truth = None
-        self.contexts = None
-        self.contexts_ids = None
-        self.goldPassages = None
-        self.goldPassages_ids = None
+        else:
+            print("Using already indexed documents")
+            print(f"Index Stats:  {self.DB.getIndexStats()}")
 
-    def setQuery(self, query):
-        self.query = query
+        # Create a list of dictionaries with keys: question, answer, contexts, context_ids, ground_truth
 
-    def getQuery(self):
-        return self.query
+        print("Start answering queries. Please wait. ")
 
-    def setAnswer(self, answer):
-        self.answer = answer
+        # Create list of list of rag elements. Every rag element is a dictionary
+        # containing the question, answer, contexts, context_ids and ground_truth
+        self.rag_elements = []
+        for question, ground_truth in zip(
+            questions[:maxQueries], ground_truths[:maxQueries]
+        ):
+            self.rag_elements.append(
+                {
+                    "question": question,
+                    "answer": "",
+                    "contexts": [],
+                    "context_ids": [],
+                    "ground_truth": ground_truth,
+                }
+            )
 
-    def getAnswer(self):
-        return self.answer
+        # Iterate over the rag elements and get the answer from the LLM model and the contexts from the Vector DB
+        for rag_element in self.rag_elements:
+            print(f"Current Question: {rag_element['question']}")
+            llmanswer, contexts, context_ids = self.answerQuery(
+                rag_element["question"]
+            )  # Get answer from LLM model
+            rag_element["answer"] = llmanswer
+            rag_element["contexts"] = contexts
+            rag_element["context_ids"] = context_ids
 
-    def setGroundTruth(self, ground_truth):
-        self.ground_truth = ground_truth
+    def eval(self, method=None):
+        # Select evalaution method to run
+        if method is None:
+            print("No evaluation method selected")
+            return
 
-    def getGroundTruth(self):
-        return self.ground_truth
+        if method == "context_relevance":
+            queries = [element["question"] for element in self.rag_elements]
+            contexts = [element["contexts"] for element in self.rag_elements]
+            scores = self.evaluate_context_relevance(queries, contexts)
+            return scores
 
-    def setContexts(self, contexts):
-        self.contexts = contexts
+        if method == "faithfulness":
+            answers = [element["answer"] for element in self.rag_elements]
+            contexts = [element["contexts"] for element in self.rag_elements]
+            scores = self.evaluate_faithfulness(answers, contexts)
+            return scores
 
-    def getContexts(self):
-        return self.contexts
+        if method == "answer_relevance":
+            queries = [element["question"] for element in self.rag_elements]
+            answers = [element["answer"] for element in self.rag_elements]
+            scores = self.evaluate_answer_relevance(queries, answers)
+            return scores
 
-    def setContextsIds(self, contexts_ids):
-        self.contexts_ids = contexts_ids
+        if method == "correctness":
+            answers = [element["answer"] for element in self.rag_elements]
+            ground_truths = [element["ground_truth"] for element in self.rag_elements]
+            scores = self.evaluate_correctness(answers, ground_truths)
+            return scores
 
-    def getContextsIds(self):
-        return self.contexts_ids
 
-    def setGoldPassages(self, goldPassages):
-        self.goldPassages = goldPassages
+class DatasetHelpers:
+    # Helper functions for datasets
+    def __init__(self, chunking_params=None):
+        self.chunking_params = chunking_params
 
-    def getGoldPassages(self):
-        return self.goldPassages
+    def loadSQUAD(self):
+        # Load SQUAD dataset
+        pass
 
-    def setGoldPassagesIds(self, goldPassages_ids):
-        self.goldPassages_ids = goldPassages_ids
+    def loadTriviaQA(self):
+        # Load TriviaQA dataset
+        pass
 
-    def getGoldPassagesIds(self):
-        return self.goldPassages_ids
+    def loadHotpotQA(self):
+        # Load HotpotQA dataset
+        pass
 
-    def getRagElement(self):
-        return {
-            "query": self.query,
-            "answer": self.answer,
-            "ground_truth": self.ground_truth,
-            "contexts": self.contexts,
-            "contexts_ids": self.contexts_ids,
-            "goldPassages": self.goldPassages,
-            "goldPassages_ids": self.goldPassages_ids,
-        }
+    def loadNaturalQuestions(self):
+        # Load NaturalQuestions dataset
+        pass
 
-    def setRagElement(self, ragElement):
-        self.query = ragElement["query"]
-        self.answer = ragElement["answer"]
-        self.ground_truth = ragElement["ground_truth"]
-        self.contexts = ragElement["contexts"]
-        self.contexts_ids = ragElement["contexts_ids"]
-        self.goldPassages = ragElement["goldPassages"]
-        self.goldPassages_ids = ragElement["goldPassages_ids"]
-        return self
+    def loadMiniWiki(self):
+        # Load MiniWiki dataset
+        print("Loading MiniWiki dataset")
+        corpus = load_dataset("rag-datasets/mini_wikipedia", "text-corpus")["passages"]
+        # Create a list of dictionaries with keys: passage, id
+        corpus_list = []
+        for passage, iD in zip(corpus["passage"], corpus["id"]):
+            corpus_list.append({"text": passage, "id": iD})
 
-    def resetRagElement(self):
-        self.query = None
-        self.answer = None
-        self.ground_truth = None
-        self.contexts = None
-        self.contexts_ids = None
-        self.goldPassages = None
-        self.goldPassages_ids = None
-        return self
+        QA = load_dataset("rag-datasets/mini_wikipedia", "question-answer")["test"]
+
+        queries = QA["question"]
+        ground_truths = QA["answer"]
+
+        return corpus_list, queries, ground_truths
