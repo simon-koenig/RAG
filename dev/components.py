@@ -3,6 +3,7 @@ import pprint
 import re
 
 import marqo
+import numpy as np
 import requests
 from datasets import load_dataset
 from sentence_transformers import SentenceTransformer
@@ -14,6 +15,7 @@ class VectorStore:
         self.indexName = None
 
     def connectIndex(self, indexName):
+        # Check if the index exists and connect to it
         indexName = indexName.lower()
         if indexName in [
             key.get("indexName") for key in self.mq.get_indexes()["results"]
@@ -317,8 +319,8 @@ class RagPipe:
                 "role": "system",
                 "content": "Given the following context and query,"
                 " Give a binary rating, either 0 or 1."
-                " Respond wiht 0 if the context is not sufficient for answering the query. "
-                " Respond with 1 the context is sufficient for answering the query. "
+                " Respond wiht 0 if the context is not sufficiently relevant to the query. "
+                " Respond with 1 if the context is sufficiently relevant to the query. "
                 'Strictly respond with  either  "0" or "1"'
                 'The output must strictly and only be a single integer "0" or "1" and no additional text.',
             },
@@ -465,7 +467,8 @@ class RagPipe:
         # containing the question, answer, contexts, context_ids and ground_truth
         self.rag_elements = []
         for question, ground_truth in zip(
-            questions[:maxQueries], ground_truths[:maxQueries]
+            questions[:maxQueries],
+            ground_truths[:maxQueries],
         ):
             self.rag_elements.append(
                 {

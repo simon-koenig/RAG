@@ -1,7 +1,33 @@
 # Parameter Development AI(T) Chatbot -- Under Developement
 
-This chatbot uses [marqo](https://www.marqo.ai/), [minio](https://min.io/), [OpenaiAPI](https://platform.openai.com/) and an open source LLM. 
-and in particular implements the ideas suggested in [this article](https://medium.com/creator-fund/building-search-engines-that-think-like-humans-e019e6fb6389).
+This repository aims at building a comprehensive RAG system evaluation. The goal is to give easy to use paramter tuning for RAG systems.
+
+Paramters can be tweaked and tuned with the help of 4 evalution metrics: 
+
+- Context Relevance
+- Answer Relevance
+- Faithfullness
+- Correctness
+
+TODO: Give brief explanation on metrics
+
+## Requirements
+
+
+## Dataset preparation
+
+
+## Tunable parameters
+
+
+## RAG system methodology
+
+## Example Usage
+
+
+
+
+
 
 ## Requirements
 
