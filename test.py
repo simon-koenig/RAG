@@ -21,9 +21,10 @@ presence_pen = 1.0
 repeat_pen = 1.0
 
 
-curl -X POST http://10.103.251.100:8882/indexes/animal-facts/search \
+"""curl -X POST http://10.103.251.100:8882/indexes/animal-facts/search \
             --header 'Content-Type: application/json' \
             --data '{
                     "q": "what are bengal tigers",
                     "searchableAttributes": ["Text"]
             }'
+"""

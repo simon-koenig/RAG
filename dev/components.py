@@ -517,6 +517,24 @@ class RagPipe:
             scores = self.evaluate_correctness(answers, ground_truths)
             return scores
 
+        if method == "all":
+            queries = [element["question"] for element in self.rag_elements]
+            contexts = [element["contexts"] for element in self.rag_elements]
+            answers = [element["answer"] for element in self.rag_elements]
+            ground_truths = [element["ground_truth"] for element in self.rag_elements]
+
+            cr_scores = self.evaluate_context_relevance(queries, contexts)
+            f_scores = self.evaluate_faithfulness(answers, contexts)
+            ar_scores = self.evaluate_answer_relevance(queries, answers)
+            c_scores = self.evaluate_correctness(answers, ground_truths)
+
+            return {
+                "context_relevance": cr_scores,
+                "faithfulness": f_scores,
+                "answer_relevance": ar_scores,
+                "correctness": c_scores,
+            }
+
 
 class DatasetHelpers:
     # Helper functions for datasets
@@ -554,3 +572,9 @@ class DatasetHelpers:
         ground_truths = QA["answer"]
 
         return corpus_list, queries, ground_truths
+
+    def loadQM(self):
+        # Load QM dataset
+        print("Loading MiniWiki dataset")
+
+        pass
