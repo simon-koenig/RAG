@@ -4,15 +4,35 @@ import re
 
 import marqo
 import numpy as np
+import pandas as pd
 import requests
 from datasets import load_dataset
+from lingua import Language, LanguageDetectorBuilder
 from sentence_transformers import SentenceTransformer
+
+
+# Helper functions
+def escape_markdown(text):
+    MD_SPECIAL_CHARS = "\`*_{}[]()#+-.!"
+    for char in MD_SPECIAL_CHARS:
+        text = text.replace(char, "\\" + char)
+    text = text.strip()
+    return text
+
+
+def get_language_detector():
+    languages = [Language.ENGLISH, Language.GERMAN]
+    detector = LanguageDetectorBuilder.from_languages(*languages).build()
+    return detector
 
 
 class VectorStore:
     def __init__(self, url):
         self.mq = marqo.Client(url=url)
         self.indexName = None
+        self.model = (
+            "flax-sentence-embeddings/all_datasets_v4_mpnet-base"  # Default model
+        )
 
     def connectIndex(self, indexName):
         # Check if the index exists and connect to it
@@ -90,7 +110,7 @@ class VectorStore:
                     {
                         "text": text,
                         "tokens": self.token_estimate(text),
-                        "id": ID,
+                        "chunk": ID,
                     }
                 ],
                 # Arguments in tensor_fields will have vectors generated for them. For best recall and performance, minimise the number of arguments in tensor_fields.
@@ -115,36 +135,74 @@ class VectorStore:
                 " documents has to be a list of dictionaries with keys 'id' and 'text'"
             )
 
-    def retrieveDocuments(self, query, k):
+    def retrieveDocuments(self, query, k, rerank=False, prepost_context=False):
         # Retrieve top k documents from indexName based on query
         response = self.mq.index(self.indexName).search(
             q=query,  # Query string
             limit=k,  # Number of documents to retrieve
-            attributes_to_retrieve=["text", "id"],  # Attributes to retrieve
+            # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve
         )
 
         contexts = [response["hits"][i]["text"] for i in range(len(response["hits"]))]
-        ids = [response["hits"][i]["id"] for i in range(len(response["hits"]))]
+        ids = [response["hits"][i]["chunk"] for i in range(len(response["hits"]))]
 
         return contexts, ids
 
-    def getBackground(self, query, k):
+    def getBackground(self, query, k, lang, rerank=False, prepost_context=False):
         # Retrieve top k documents from indexName based on query
-        response = self.mq.index(self.indexName).search(
+        # Modify filter string to include language
+        filterstring = f"lang:{lang}"  # Add language to filter string
+
+        # Semantic Search
+        response_sem = self.mq.index(
+            self.indexName
+        ).search(
             q=query,  # Query string
             limit=k,  # Number of documents to retrieve
-            attributes_to_retrieve=["text", "id"],  # Attributes to retrieve
+            # attributes_to_retrieve=["text", "chunk"],
+            filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
         )
 
-        # Get retrieved text.
-        contexts = [response["hits"][i]["text"] for i in range(len(response["hits"]))]
-        ids = [response["hits"][i]["id"] for i in range(len(response["hits"]))]
-        ## pprint.pprint(contexts)
-        background = ""
-        for text in contexts:
-            background += text + " "
+        # Lexial Search
+        response_lex = self.mq.index(self.indexName).search(
+            q=query,  # Query string
+            limit=k,  # Number of documents to retrieve
+            # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve, explicit is faster
+            filter_string=filterstring,  # Filter in db, e.g. for lang
+            search_method="LEXICAL",
+        )
 
-        return background, contexts, ids
+        # Construct contexts and background
+        background = ""
+        contexts = []
+        context_ids = []
+        # Combine semantic and lexical search results
+        for response in [response_sem, response_lex]:
+            # Construct Background
+
+            for i in range(len(response["hits"])):
+                # Get current context
+                text = response["hits"][i]["text"]
+                title = response["hits"][i]["title"]
+                link_url = response["hits"][i]["link_url"]
+                score = response["hits"][i]["_score"]
+                # Augment context with title, link and score
+                context = f" {text}, source: {title},  ({link_url}) (Score: {score}) "
+                contexts.append(context)
+                # Get current context id
+                Id = response["hits"][i]["chunk"]
+                context_ids.append(Id)
+
+                ## pprint.pprint(contexts)
+                # If pre post context is true, add pre and post context to background
+                if prepost_context:
+                    pre_context = response["hits"][i]["pre_context"]
+                    post_context = response["hits"][i]["post_context"]
+                    background += pre_context + " " + context + " " + post_context + " "
+                else:  # Else just add context
+                    background += context + " "
+
+        return background, contexts, context_ids
 
     def getIndexes(self):
         return self.mq.get_indexes()["results"]
@@ -180,7 +238,20 @@ class VectorStore:
 class RagPipe:
     # RAG pipeline
     def __init__(self):
-        self.PROMPT = " Dummy prompt"
+        self.PROMPT_EN = (
+            "You are a helpful assisstant. Context information is given in the following text."
+            "Use only information from the context to answer the question."
+            "If you are uncertain, you must say so. Give reasoning on your answer by only"
+            "refering to the given context."
+        )
+        self.PROMPT_DE = (
+            "Sie sind ein hilfreicher Assistent. Antworte auf Deutsch. Kontextinformationen sind im folgenden Text enthalten."
+            "Verwenden Sie ausschließlich Informationen aus dem Kontext, um die Frage zu beantworten."
+            "Wenn Sie sich unsicher sind, müssen Sie das sagen. Begründen Sie Ihre Antwort, indem Sie nur"
+            "indem Sie sich auf den gegebenen Kontext beziehen."
+        )
+        # Default to english
+        self.PROMPT = self.PROMPT_EN
 
     def connectVectorStore(self, vectorStore):
         self.DB = vectorStore
@@ -191,7 +262,7 @@ class RagPipe:
         print(f" Language model URL: {LLM_URL}")
         print(f" Language model connected: {LLM_NAME}")
 
-    def setCostumPrompt(self, query, userPrompt):
+    def setCostumPrompt(self, userPrompt):
         self.PROMPT = userPrompt
         print(f"Prompt set: {userPrompt}")
 
@@ -261,10 +332,23 @@ class RagPipe:
             result = report
         return result
 
-    def answerQuery(self, query):
+    def answerQuery(self, query, rerank=False, prepost_context=False):
         # Retrieve top k documents from indexName based on query
+        languge_detector = get_language_detector()
+        language = languge_detector.detect_language_of(query)
+        lang = language.iso_code_639_1.name
 
-        background, contexts, ids = self.DB.getBackground(query, 3)
+        # Update filter string with language for index search
+        background, contexts, ids = self.DB.getBackground(
+            query, k=3, lang=lang, rerank=False, prepost_context=False
+        )
+
+        # Update language prompt for LLM
+        if lang == "DE":
+            self.PROMPT = self.PROMPT_DE
+        if lang == "EN":
+            self.PROMPT = self.PROMPT_EN
+
         messages = [
             {"role": "user", "content": self.PROMPT},
             {"role": "assistant", "content": background},
@@ -295,7 +379,7 @@ class RagPipe:
 
             for query, context in zip(queries, contexts):
                 if context is None:
-                    context, ids = self.retrieveDocuments(query, 3)
+                    context, ids = self.DB.retrieveDocuments(query, 3)
 
                 measurements = []
                 for single_context in context:
@@ -303,9 +387,9 @@ class RagPipe:
                     # print(f"ID: {single_id}")
                     print(f"Context: {single_context}")
                     measure = self.llm_binary_context_relevance(single_context, query)
-                    measurements.append(measure)
+                    measurements.append(int(measure))
 
-                scores[query] = measurements  # Insert evaluation measure here
+                scores[query] = np.mean(np.array(measurements))
 
             return scores
 
@@ -319,8 +403,8 @@ class RagPipe:
                 "role": "system",
                 "content": "Given the following context and query,"
                 " Give a binary rating, either 0 or 1."
-                " Respond wiht 0 if the context is not sufficiently relevant to the query. "
-                " Respond with 1 if the context is sufficiently relevant to the query. "
+                " Respond with 0 if an answer to the query cannot be derived from the given context. "
+                "Respond with 0 if an answer to the query can be derived from the given context.  "
                 'Strictly respond with  either  "0" or "1"'
                 'The output must strictly and only be a single integer "0" or "1" and no additional text.',
             },
@@ -343,9 +427,11 @@ class RagPipe:
                 # Insert here evaluation measure of retrieved context
                 print(f"Context: {single_context}")
                 measure = self.llm_binary_faithfullness(single_context, answer)
-                measurements.append(measure)
-
-            scores[answer] = measurements  # Insert evaluation measure here
+                measurements.append(int(measure))
+            # Compute mean faithfullness over all contexts per answer
+            scores[answer] = np.mean(
+                np.array(measurements)
+            )  # Insert evaluation measure here
 
         return scores
 
@@ -383,7 +469,7 @@ class RagPipe:
             print(f"Answer: {answer}")
             print(f"Query: {query}")
             measure = self.llm_binary_answer_relevance(answer, query)
-            scores.append(measure)
+            scores.append(int(measure))
         return scores
 
     def llm_binary_answer_relevance(self, answer, query):
@@ -422,7 +508,7 @@ class RagPipe:
             print(f"Answer: {answer}")
             print(f"Ground truth: {ground_truth}")
             measure = self.semantic_similarity(answer, ground_truth)
-            scores.append(measure)
+            scores.append(round(float(measure), 3))
         return scores
 
     def semantic_similarity(self, sentence1, sentence2):
@@ -441,9 +527,11 @@ class RagPipe:
     def run(
         self,
         questions,
-        ground_truths,
-        corpus_list,
-        newIngest=True,
+        ground_truths=None,
+        corpus_list=None,
+        newIngest=False,
+        rerank=False,
+        prepost_context=False,
         maxDocs=1000000,
         maxQueries=1000000,
     ):
@@ -453,10 +541,12 @@ class RagPipe:
             print("Index emptied")
             print("Start indexing documents. Please wait. ")
             self.DB.indexDocuments(documents=corpus_list, maxDocs=maxDocs)
+            print(f" You are using index: {self.DB.indexName}")
             print(f"Done! Index Stats:  {self.DB.getIndexStats()}")
 
-        else:
-            print("Using already indexed documents")
+        elif not newIngest or not corpus_list:
+            print("Using already indexed documents.")
+            print(f" You are using index: {self.DB.indexName}")
             print(f"Index Stats:  {self.DB.getIndexStats()}")
 
         # Create a list of dictionaries with keys: question, answer, contexts, context_ids, ground_truth
@@ -466,6 +556,10 @@ class RagPipe:
         # Create list of list of rag elements. Every rag element is a dictionary
         # containing the question, answer, contexts, context_ids and ground_truth
         self.rag_elements = []
+        if ground_truths is None:
+            print("No ground truths given!")
+            ground_truths = [None] * len(questions)
+
         for question, ground_truth in zip(
             questions[:maxQueries],
             ground_truths[:maxQueries],
@@ -484,22 +578,26 @@ class RagPipe:
         for rag_element in self.rag_elements:
             print(f"Current Question: {rag_element['question']}")
             llmanswer, contexts, context_ids = self.answerQuery(
-                rag_element["question"]
+                rag_element["question"], rerank, prepost_context
             )  # Get answer from LLM model
             rag_element["answer"] = llmanswer
             rag_element["contexts"] = contexts
             rag_element["context_ids"] = context_ids
 
-    def eval(self, method=None):
+    def eval(self, method=None, queries=None):
         # Select evalaution method to run
         if method is None:
             print("No evaluation method selected")
             return
 
         if method == "context_relevance":
-            queries = [element["question"] for element in self.rag_elements]
-            contexts = [element["contexts"] for element in self.rag_elements]
-            scores = self.evaluate_context_relevance(queries, contexts)
+            if queries is not None:
+                # Bypass rag pipeline run and just evaluate context relevance
+                # betweeen queries and contexts
+                scores = self.evaluate_context_relevance(queries, contexts=None)
+            else:
+                contexts = [element["contexts"] for element in self.rag_elements]
+                scores = self.evaluate_context_relevance(queries, contexts)
             return scores
 
         if method == "faithfulness":
@@ -544,6 +642,10 @@ class DatasetHelpers:
     def __init__(self, chunking_params=None):
         self.chunking_params = chunking_params
 
+    def loadFromDocuments(self, documents):
+        # Load from a corpus of pdf documents
+        pass
+
     def loadSQUAD(self):
         # Load SQUAD dataset
         pass
@@ -578,6 +680,14 @@ class DatasetHelpers:
 
     def loadQM(self):
         # Load QM dataset
-        print("Loading MiniWiki dataset")
+        print("Loading AIT QM dataset")
 
-        pass
+        corpus_list = None
+        queries = None
+        ground_truths = None
+
+        # Skip the first row
+        df = pd.read_excel("./data/100_questions.xlsx", skiprows=1, usecols=[1])
+        queries = df.iloc[:, 0].tolist()
+
+        return corpus_list, queries, ground_truths
