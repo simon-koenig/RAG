@@ -10,6 +10,11 @@ from datasets import load_dataset
 from lingua import Language, LanguageDetectorBuilder
 from sentence_transformers import SentenceTransformer
 
+# Reranker Endpoint
+RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
+query_threshold = 0.5
+num_ref = 3
+
 
 # Helper functions
 def escape_markdown(text):
@@ -94,7 +99,6 @@ class VectorStore:
         try:
             # now remove the marqo index
             self.mq.delete_index(indexName)
-
             print(f" Sucessfuylly deleted Index: {indexName}")
         except:
             print("Unable to delete: " + indexName)
@@ -148,27 +152,26 @@ class VectorStore:
 
         return contexts, ids
 
-    def getBackground(self, query, k, lang, rerank=False, prepost_context=False):
+    def getBackground(self, query, num_ref, lang, rerank=False, prepost_context=False):
         # Retrieve top k documents from indexName based on query
         # Modify filter string to include language
         filterstring = f"lang:{lang}"  # Add language to filter string
+        # print(f"Filterstring: {filterstring}")
 
         # Semantic Search
-        response_sem = self.mq.index(
-            self.indexName
-        ).search(
+        response_sem = self.mq.index(self.indexName).search(
             q=query,  # Query string
-            limit=k,  # Number of documents to retrieve
-            # attributes_to_retrieve=["text", "chunk"],
-            filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
+            limit=num_ref,  # Number of documents to retrieve
+            # attributes_to_retrieve=["text", "chunnum_ref"],
+            # filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
         )
 
         # Lexial Search
         response_lex = self.mq.index(self.indexName).search(
             q=query,  # Query string
-            limit=k,  # Number of documents to retrieve
+            limit=num_ref,  # Number of documents to retrieve
             # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve, explicit is faster
-            filter_string=filterstring,  # Filter in db, e.g. for lang
+            # filter_string=filterstring,  # Filter in db, e.g. for lang
             search_method="LEXICAL",
         )
 
@@ -176,28 +179,91 @@ class VectorStore:
         background = ""
         contexts = []
         context_ids = []
-        # Combine semantic and lexical search results
-        for response in [response_sem, response_lex]:
-            # Construct Background
+        full_results = []
+        plain_text_results = []
 
-            for i in range(len(response["hits"])):
-                # Get current context
-                text = response["hits"][i]["text"]
-                title = response["hits"][i]["title"]
-                link_url = response["hits"][i]["link_url"]
-                score = response["hits"][i]["_score"]
+        # If rerank is false, combine semantic and lexical search results
+        if rerank is False:
+            # Combine semantic and lexical search results
+            for response in [response_sem, response_lex]:
+                # Construct Background
+                for i in range(len(response["hits"])):
+                    # Get current context
+                    text = response["hits"][i]["text"]
+                    # title = response["hits"][i]["title"]
+                    # link_url = response["hits"][i]["link_url"]
+                    score = response["hits"][i]["_score"]
+                    # Augment context with title, link and score
+                    context = f"Text: {text} "
+                    contexts.append(context)
+                    # Get current context id
+                    Id = response["hits"][i]["chunk"]
+                    context_ids.append(Id)
+
+                    ## pprint.pprint(contexts)
+                    # If pre post context is true, add pre and post context to background
+                    if prepost_context:
+                        pre_context = response["hits"][i]["pre_context"]
+                        post_context = response["hits"][i]["post_context"]
+                        background += (
+                            pre_context + " " + context + " " + post_context + " "
+                        )
+                    else:  # Else just add context
+                        background += context + " "
+
+        # If rerank is true, rerank the results
+        if rerank is True:
+            print(f" Semantic Search Results: {response_sem}")
+            print(f" Lexical Search Results: {response_lex}")
+            for response in response_sem["hits"]:
+                if response["_score"] > query_threshold:
+                    full_results.append(response)
+                    plain_text_results.append(response["text"])
+            for response in response_lex["hits"]:
+                full_results.append(response)
+                plain_text_results.append(response["text"])
+
+            headers = {
+                "Content-Type": "application/json",
+            }
+            data = {
+                "query": query,
+                "raw_results": plain_text_results,
+                "num_results": num_ref,
+            }
+
+            # Get response from reranker
+            response = requests.post(RERANKER_ENDPOINT, headers=headers, json=data)
+            # Safe guard
+            print(f"Response: {response}")
+            if not response.status_code == 200:
+                print("Reranker failed")
+                raise ("Reranker failed")
+                return
+            # Unpack json response
+            reranked_results = response.json()
+            # Iterate over reranked results
+            for reranked_res in reranked_results:
+                current_index = reranked_res["result_index"]
+                print(f"Current Index: {current_index}")
+                # Get current highest ranked context
+                hit = full_results[current_index]
+                text = hit["text"]
+                # title = hit["title"]
+                # link_url = hit["link_url"]
+                score = hit["_score"]
                 # Augment context with title, link and score
-                context = f" {text}, source: {title},  ({link_url}) (Score: {score}) "
+                context = f" Text: {text} "
                 contexts.append(context)
                 # Get current context id
-                Id = response["hits"][i]["chunk"]
+                Id = hit["chunk"]
                 context_ids.append(Id)
 
                 ## pprint.pprint(contexts)
                 # If pre post context is true, add pre and post context to background
                 if prepost_context:
-                    pre_context = response["hits"][i]["pre_context"]
-                    post_context = response["hits"][i]["post_context"]
+                    pre_context = hit["pre_context"]
+                    post_context = hit["post_context"]
                     background += pre_context + " " + context + " " + post_context + " "
                 else:  # Else just add context
                     background += context + " "
@@ -340,7 +406,11 @@ class RagPipe:
 
         # Update filter string with language for index search
         background, contexts, ids = self.DB.getBackground(
-            query, k=3, lang=lang, rerank=False, prepost_context=False
+            query,
+            num_ref=num_ref,
+            lang=lang,
+            rerank=rerank,
+            prepost_context=prepost_context,
         )
 
         # Update language prompt for LLM
@@ -359,13 +429,19 @@ class RagPipe:
         return result, contexts, ids
 
     def evaluate_context_relevance(
-        self, queries, contexts=None, ids=None, goldPassages=None
+        self,
+        queries,
+        contexts=None,
+        ids=None,
+        goldPassages=None,
+        evaluator="sem-similarity",
     ):
         # Type checking
         if not isinstance(queries, list):
             raise TypeError(
                 f"Queries must be of type list, but got {type(queries).__name__}."
             )
+
         # check if gold passages available
         if goldPassages is None:
             scores = {}
@@ -377,18 +453,27 @@ class RagPipe:
             ):  # Extend context to list of nones to match queries length
                 contexts = [None] * len(queries)
 
+            # Loop over all queries with their respective contexts
             for query, context in zip(queries, contexts):
                 if context is None:
+                    # Retrieve top 3 documents from index based on query
                     context, ids = self.DB.retrieveDocuments(query, 3)
 
                 measurements = []
+                # Loop over all contexts for a query
                 for single_context in context:
-                    # Insert here evaluation measure of retrieved context
-                    # print(f"ID: {single_id}")
                     print(f"Context: {single_context}")
-                    measure = self.llm_binary_context_relevance(single_context, query)
-                    measurements.append(int(measure))
 
+                    # Evaluate context relevance based on chosen evaluator
+                    if evaluator == "sem-similarity":
+                        measure = self.semantic_similarity(single_context, query)
+                    elif evaluator == "llm-judge":
+                        measure = self.llm_binary_context_relevance(
+                            single_context, query
+                        )
+                    # Convert measure to float and append to list
+                    measurements.append(round(float(measure), 3))
+                # Compute mean context relevance over all contexts per query
                 scores[query] = np.mean(np.array(measurements))
 
             return scores
@@ -414,7 +499,7 @@ class RagPipe:
         result = self.evalSendToLLM(messages)
         return result
 
-    def evaluate_faithfulness(self, answers, contexts):
+    def evaluate_faithfulness(self, answers, contexts, evaluator="sem-similarity"):
         # Type checking
         if not isinstance(answers, list):
             raise TypeError(
@@ -425,9 +510,13 @@ class RagPipe:
             measurements = []
             for single_context in context:
                 # Insert here evaluation measure of retrieved context
-                print(f"Context: {single_context}")
-                measure = self.llm_binary_faithfullness(single_context, answer)
-                measurements.append(int(measure))
+                print(f"Context: {single_context}")  #
+                if evaluator == "sem-similarity":
+                    measure = self.semantic_similarity(single_context, answer)
+                elif evaluator == "llm-judge":
+                    measure = self.llm_binary_faithfullness(single_context, answer)
+
+                measurements.append(round(float(measure), 3))
             # Compute mean faithfullness over all contexts per answer
             scores[answer] = np.mean(
                 np.array(measurements)
@@ -452,7 +541,7 @@ class RagPipe:
         result = self.evalSendToLLM(messages)
         return result
 
-    def evaluate_answer_relevance(self, queries, answers):
+    def evaluate_answer_relevance(self, queries, answers, evaluator="sem-similarity"):
         # Type checking
         if not isinstance(answers, list):
             raise TypeError(
@@ -468,8 +557,13 @@ class RagPipe:
         for answer, query in zip(answers, queries):
             print(f"Answer: {answer}")
             print(f"Query: {query}")
-            measure = self.llm_binary_answer_relevance(answer, query)
-            scores.append(int(measure))
+            # Evaluate context relevance based on chosen evaluator
+            if evaluator == "sem-similarity":
+                measure = self.semantic_similarity(answer, query)
+            elif evaluator == "llm-judge":
+                measure = self.llm_binary_answer_relevance(answer, query)
+            # Convert measure to float and append to list
+            scores.append(round(float(measure), 3))
         return scores
 
     def llm_binary_answer_relevance(self, answer, query):
@@ -491,7 +585,7 @@ class RagPipe:
         result = self.evalSendToLLM(messages)
         return result
 
-    def evaluate_correctness(self, answers, ground_truths):
+    def evaluate_correctness(self, answers, ground_truths, evaluator="sem-similarity"):
         # Type checking
         if not isinstance(answers, list):
             raise TypeError(
@@ -507,16 +601,43 @@ class RagPipe:
         for answer, ground_truth in zip(answers, ground_truths):
             print(f"Answer: {answer}")
             print(f"Ground truth: {ground_truth}")
-            measure = self.semantic_similarity(answer, ground_truth)
+            if evaluator == "sem-similarity":
+                measure = self.semantic_similarity(answer, ground_truth)
+            elif evaluator == "llm-judge":
+                measure = self.llm_binary_correctness(answer, ground_truth)
+
             scores.append(round(float(measure), 3))
         return scores
 
+    def llm_binary_correctness(self, answer, ground_truth):
+        messages = [
+            {
+                "role": "system",
+                "content": "Given the following answer and ground truth,"
+                "Analyse the question and answer without consulting prior knowledge."
+                " Determine if the answer is correct based on the ground truth."
+                " Give a binary rating, either 0 or 1."
+                " Consider whether the ground truth matches the answer in meaning."
+                " Respond with 0 if the answer is incorrect based on the ground truth."
+                " Respond with 1 if the answer is correct based on the ground truth."
+                ' Strictly respond with  either  "0" or "1"'
+                'The output must strictly and only be a single integer "0" or "1" and no additional text.',
+            },
+            {
+                "role": "user",
+                "content": f"Answer: {answer} ; GroundTruth: {ground_truth}",
+            },
+        ]
+        result = self.evalSendToLLM(messages)
+        return result
+
     def semantic_similarity(self, sentence1, sentence2):
-        model = SentenceTransformer("all-mpnet-base-v2")
+        model = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1")  # cheap model for dev
 
         sentence1_vec = model.encode([sentence1])
 
         sentence2_vec = model.encode([sentence2])
+
         similarity_score = model.similarity(
             sentence1_vec, sentence2_vec
         )  # Default is cosine simi
@@ -584,11 +705,20 @@ class RagPipe:
             rag_element["contexts"] = contexts
             rag_element["context_ids"] = context_ids
 
-    def eval(self, method=None, queries=None):
+    def eval(self, method=None, queries=None, evaluator="sem-similarity"):
         # Select evalaution method to run
-        if method is None:
+        if method is None or method not in [
+            "context_relevance",
+            "faithfulness",
+            "answer_relevance",
+            "correctness",
+            "all",
+        ]:
             print("No evaluation method selected")
             return
+        # Print choices
+        print(f"Running evaluation for method: {method}")
+        print(f"Using evaluator: {evaluator}")
 
         if method == "context_relevance":
             if queries is not None:
@@ -597,25 +727,25 @@ class RagPipe:
                 scores = self.evaluate_context_relevance(queries, contexts=None)
             else:
                 contexts = [element["contexts"] for element in self.rag_elements]
-                scores = self.evaluate_context_relevance(queries, contexts)
+                scores = self.evaluate_context_relevance(queries, contexts, evaluator)
             return scores
 
         if method == "faithfulness":
             answers = [element["answer"] for element in self.rag_elements]
             contexts = [element["contexts"] for element in self.rag_elements]
-            scores = self.evaluate_faithfulness(answers, contexts)
+            scores = self.evaluate_faithfulness(answers, contexts, evaluator)
             return scores
 
         if method == "answer_relevance":
             queries = [element["question"] for element in self.rag_elements]
             answers = [element["answer"] for element in self.rag_elements]
-            scores = self.evaluate_answer_relevance(queries, answers)
+            scores = self.evaluate_answer_relevance(queries, answers, evaluator)
             return scores
 
         if method == "correctness":
             answers = [element["answer"] for element in self.rag_elements]
             ground_truths = [element["ground_truth"] for element in self.rag_elements]
-            scores = self.evaluate_correctness(answers, ground_truths)
+            scores = self.evaluate_correctness(answers, ground_truths, evaluator)
             return scores
 
         if method == "all":
@@ -624,10 +754,10 @@ class RagPipe:
             answers = [element["answer"] for element in self.rag_elements]
             ground_truths = [element["ground_truth"] for element in self.rag_elements]
 
-            cr_scores = self.evaluate_context_relevance(queries, contexts)
-            f_scores = self.evaluate_faithfulness(answers, contexts)
-            ar_scores = self.evaluate_answer_relevance(queries, answers)
-            c_scores = self.evaluate_correctness(answers, ground_truths)
+            cr_scores = self.evaluate_context_relevance(queries, contexts, evaluator)
+            f_scores = self.evaluate_faithfulness(answers, contexts, evaluator)
+            ar_scores = self.evaluate_answer_relevance(queries, answers, evaluator)
+            c_scores = self.evaluate_correctness(answers, ground_truths, evaluator)
 
             return {
                 "context_relevance": cr_scores,
