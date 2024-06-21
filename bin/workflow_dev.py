@@ -42,7 +42,7 @@ corpus_list, queries, ground_truths = datasetHelpers.loadMiniWiki()
 documentDB = VectorStore(MARQO_URL)  # Connect to marqo client via python API
 print(documentDB.getIndexes())  # Print all indexes
 documentDB.connectIndex("miniwikiindex")  # Connect to the miniwikiindex
-
+# documentDB.indexDocuments(corpus_list, 10)  # Add documents to the index
 # Or create a new Index
 # documentDB.createIndex("miniwikiindex",settings=None)  # Create a new index
 
@@ -56,9 +56,10 @@ pipe.run(
     queries,
     ground_truths,
     corpus_list,
-    newIngest=False,
-    maxDocs=1000,
+    newIngest=True,
+    maxDocs=10,
     maxQueries=2,
+    lang="EN",
     rerank=True,
     prepost_context=True,
 )

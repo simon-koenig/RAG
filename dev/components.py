@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import requests
 from datasets import load_dataset
-from lingua import Language, LanguageDetectorBuilder
 from sentence_transformers import SentenceTransformer
 
 # Reranker Endpoint
@@ -23,12 +22,6 @@ def escape_markdown(text):
         text = text.replace(char, "\\" + char)
     text = text.strip()
     return text
-
-
-def get_language_detector():
-    languages = [Language.ENGLISH, Language.GERMAN]
-    detector = LanguageDetectorBuilder.from_languages(*languages).build()
-    return detector
 
 
 class VectorStore:
@@ -105,16 +98,20 @@ class VectorStore:
 
     def indexDocument(self, document):
         # Documents has to be a dict with keys 'id' and 'text'
-        ID = document["id"]
-        text = document["text"]
+        chunk_id = document["chunk_id"]
+        main_text = document["text"]
+        pre_context = document["pre_context"]
+        post_context = document["post_context"]
 
         try:
             self.mq.index(self.indexName).add_documents(
                 [
                     {
-                        "text": text,
-                        "tokens": self.token_estimate(text),
-                        "chunk": ID,
+                        "text": main_text,
+                        "tokens": self.token_estimate(main_text),
+                        "chunk": chunk_id,
+                        "pre_context": pre_context,
+                        "post_context": post_context,
                     }
                 ],
                 # Arguments in tensor_fields will have vectors generated for them. For best recall and performance, minimise the number of arguments in tensor_fields.
@@ -123,16 +120,47 @@ class VectorStore:
 
         except:
             print(
-                f"Ingest error for passage with id: {ID},"
+                f"Ingest error for passage with id: {chunk_id},"
                 "Documents has to be a dict with keys 'id' and 'text'"
             )
 
     def indexDocuments(self, documents, maxDocs=1000000):
         # Index a single document. Which has the form
-        # document = {"id": "1", "text": "Some Text"}
+        # document = {"id": "1", "text": "Some Text",
+        # "pre+context": "Some pre Text", "post_context": "Some post Text}
+        # convert document to a dict of document properties
+        n_docs = min(len(documents), maxDocs)
         try:
-            for i in range(min(len(documents), maxDocs)):
-                self.indexDocument(documents[i])
+            for i in range(n_docs):
+                chunk_id = documents[i]["id"]
+                main_text = documents[i]["text"]
+                print(f" Current i = {i}")
+                # Exceptions are needed the first two and last two documents
+                if i == 0:
+                    pre_context = ""
+                    post_context = documents[i + 1]["text"] + documents[i + 2]["text"]
+                elif i == 1:
+                    pre_context = documents[i - 1]["text"]
+                    post_context = documents[i + 1]["text"] + documents[i + 2]["text"]
+                elif i == n_docs - 1:
+                    pre_context = documents[i - 1]["text"] + documents[i - 2]["text"]
+                    post_context = ""
+                elif i == n_docs - 2:
+                    pre_context = documents[i - 1]["text"] + documents[i - 2]["text"]
+                    post_context = documents[i + 1]["text"]
+                else:
+                    pre_context = documents[i - 1]["text"] + documents[i - 2]["text"]
+                    post_context = documents[i + 1]["text"] + documents[i + 2]["text"]
+
+                document = {
+                    "text": main_text,
+                    "tokens": self.token_estimate(main_text),
+                    "chunk_id": chunk_id,
+                    "pre_context": pre_context,
+                    "post_context": post_context,
+                }
+                print(f"Indexing document: {document}")
+                self.indexDocument(document)
         except:
             print(
                 f"Error in indexing corpus for index: {self.indexName}, "
@@ -398,11 +426,8 @@ class RagPipe:
             result = report
         return result
 
-    def answerQuery(self, query, rerank=False, prepost_context=False):
+    def answerQuery(self, query, rerank=False, prepost_context=False, lang="EN"):
         # Retrieve top k documents from indexName based on query
-        languge_detector = get_language_detector()
-        language = languge_detector.detect_language_of(query)
-        lang = language.iso_code_639_1.name
 
         # Update filter string with language for index search
         background, contexts, ids = self.DB.getBackground(
@@ -419,10 +444,15 @@ class RagPipe:
         if lang == "EN":
             self.PROMPT = self.PROMPT_EN
 
+        # Tell llm again to obey instructions
+        enforce_query = (
+            "Given this context information and not prior knowledge, answer the following user query"
+            + query
+        )
         messages = [
             {"role": "user", "content": self.PROMPT},
             {"role": "assistant", "content": background},
-            {"role": "user", "content": query},
+            {"role": "user", "content": enforce_query},
         ]
 
         result = self.sendToLLM(messages)
@@ -434,7 +464,7 @@ class RagPipe:
         contexts=None,
         ids=None,
         goldPassages=None,
-        evaluator="sem-similarity",
+        evaluator="sem_similarity",
     ):
         # Type checking
         if not isinstance(queries, list):
@@ -465,9 +495,9 @@ class RagPipe:
                     print(f"Context: {single_context}")
 
                     # Evaluate context relevance based on chosen evaluator
-                    if evaluator == "sem-similarity":
+                    if evaluator == "sem_similarity":
                         measure = self.semantic_similarity(single_context, query)
-                    elif evaluator == "llm-judge":
+                    elif evaluator == "llm_judge":
                         measure = self.llm_binary_context_relevance(
                             single_context, query
                         )
@@ -499,7 +529,7 @@ class RagPipe:
         result = self.evalSendToLLM(messages)
         return result
 
-    def evaluate_faithfulness(self, answers, contexts, evaluator="sem-similarity"):
+    def evaluate_faithfulness(self, answers, contexts, evaluator="sem_similarity"):
         # Type checking
         if not isinstance(answers, list):
             raise TypeError(
@@ -511,9 +541,9 @@ class RagPipe:
             for single_context in context:
                 # Insert here evaluation measure of retrieved context
                 print(f"Context: {single_context}")  #
-                if evaluator == "sem-similarity":
+                if evaluator == "sem_similarity":
                     measure = self.semantic_similarity(single_context, answer)
-                elif evaluator == "llm-judge":
+                elif evaluator == "llm_judge":
                     measure = self.llm_binary_faithfullness(single_context, answer)
 
                 measurements.append(round(float(measure), 3))
@@ -541,7 +571,7 @@ class RagPipe:
         result = self.evalSendToLLM(messages)
         return result
 
-    def evaluate_answer_relevance(self, queries, answers, evaluator="sem-similarity"):
+    def evaluate_answer_relevance(self, queries, answers, evaluator="sem_similarity"):
         # Type checking
         if not isinstance(answers, list):
             raise TypeError(
@@ -558,9 +588,9 @@ class RagPipe:
             print(f"Answer: {answer}")
             print(f"Query: {query}")
             # Evaluate context relevance based on chosen evaluator
-            if evaluator == "sem-similarity":
+            if evaluator == "sem_similarity":
                 measure = self.semantic_similarity(answer, query)
-            elif evaluator == "llm-judge":
+            elif evaluator == "llm_judge":
                 measure = self.llm_binary_answer_relevance(answer, query)
             # Convert measure to float and append to list
             scores.append(round(float(measure), 3))
@@ -585,7 +615,7 @@ class RagPipe:
         result = self.evalSendToLLM(messages)
         return result
 
-    def evaluate_correctness(self, answers, ground_truths, evaluator="sem-similarity"):
+    def evaluate_correctness(self, answers, ground_truths, evaluator="sem_similarity"):
         # Type checking
         if not isinstance(answers, list):
             raise TypeError(
@@ -601,9 +631,9 @@ class RagPipe:
         for answer, ground_truth in zip(answers, ground_truths):
             print(f"Answer: {answer}")
             print(f"Ground truth: {ground_truth}")
-            if evaluator == "sem-similarity":
+            if evaluator == "sem_similarity":
                 measure = self.semantic_similarity(answer, ground_truth)
-            elif evaluator == "llm-judge":
+            elif evaluator == "llm_judge":
                 measure = self.llm_binary_correctness(answer, ground_truth)
 
             scores.append(round(float(measure), 3))
@@ -653,6 +683,7 @@ class RagPipe:
         newIngest=False,
         rerank=False,
         prepost_context=False,
+        lang="EN",
         maxDocs=1000000,
         maxQueries=1000000,
     ):
@@ -699,13 +730,13 @@ class RagPipe:
         for rag_element in self.rag_elements:
             print(f"Current Question: {rag_element['question']}")
             llmanswer, contexts, context_ids = self.answerQuery(
-                rag_element["question"], rerank, prepost_context
+                rag_element["question"], rerank, prepost_context, lang
             )  # Get answer from LLM model
             rag_element["answer"] = llmanswer
             rag_element["contexts"] = contexts
             rag_element["context_ids"] = context_ids
 
-    def eval(self, method=None, queries=None, evaluator="sem-similarity"):
+    def eval(self, method=None, queries=None, evaluator="sem_similarity"):
         # Select evalaution method to run
         if method is None or method not in [
             "context_relevance",
@@ -727,6 +758,7 @@ class RagPipe:
                 scores = self.evaluate_context_relevance(queries, contexts=None)
             else:
                 contexts = [element["contexts"] for element in self.rag_elements]
+                queries = [element["question"] for element in self.rag_elements]
                 scores = self.evaluate_context_relevance(queries, contexts, evaluator)
             return scores
 
