@@ -1,4 +1,5 @@
 # Components for RAG pipeline
+import csv
 import pprint
 import re
 
@@ -7,6 +8,11 @@ import numpy as np
 import pandas as pd
 import requests
 from datasets import load_dataset
+from langchain.text_splitter import (
+    CharacterTextSplitter,  # need to install langchain
+    NLTKTextSplitter,
+    RecursiveCharacterTextSplitter,
+)
 from sentence_transformers import SentenceTransformer
 
 # Reranker Endpoint
@@ -17,11 +23,188 @@ num_ref = 3
 
 # Helper functions
 def escape_markdown(text):
+    """
+    Escapes special characters in Markdown text.
+
+    Args:
+        text (str): The input text.
+
+    Returns:
+        str: The escaped text.
+    """
     MD_SPECIAL_CHARS = "\`*_{}[]()#+-.!"
     for char in MD_SPECIAL_CHARS:
         text = text.replace(char, "\\" + char)
     text = text.strip()
     return text
+
+
+def chunkText(text, method="recursive", chunk_size=512, chunk_overlap=128):
+    """
+    Splits the input text into chunks.
+
+    Args:
+        text (str): The input text.
+        method (str, optional): The method used for chunking. Defaults to "recursive".
+        chunk_size (int, optional): The size of each chunk in characters. Defaults to 512.
+        chunk_overlap (int, optional): The overlap between chunks in characters. Defaults to 128.
+
+    Returns:
+        list: A list of chunks.
+    """
+    if method == "recursive":
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            separators=["\n", ".", "!", "?"],
+        )
+        splitted_text = splitter.split_text(text)
+
+    elif method == "sentence":
+        # We estimate a sentence to have 50 characters on average
+
+        splitter = NLTKTextSplitter()
+        splitted_text = splitter.split_text(text)
+
+    elif method == "fixed_size":
+        splitter = CharacterTextSplitter(
+            separator="\n", chunk_size=chunk_size, chunk_overlap=chunk_overlap
+        )
+        splitted_text = splitter.split_text(text)
+
+    return [chunk for chunk in splitted_text]
+
+
+def write_context_relevance_to_csv(filename, scores, evaluator):
+    """
+    Writes context relevance scores to a CSV file.
+
+    Args:
+        filename (str): The name of the CSV file.
+        scores (dict): A dictionary of query-context relevance scores.
+        evaluator (str): The name of the evaluator.
+
+    Returns:
+        None
+    """
+    # Open the CSV file in write mode
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        # Write the title row
+        title = f"Query-Context-Relevance-{evaluator}"
+        writer.writerow([title])
+
+        # Assuming all contexts arrays have the same length
+        num_contexts = len(next(iter(scores.values())))
+        # Write the header row
+        header = ["Query"] + [f"Context_{i}_Score" for i in range(num_contexts)]
+        writer.writerow(header)
+
+        # Write the data rows
+        for query, contexts_scores in scores.items():
+            row = [
+                query
+            ] + contexts_scores.tolist()  # Convert the numpy array to a list
+            writer.writerow(row)
+
+    print(f"Data written to {filename} successfully.")
+
+
+def write_faithfulness_to_csv(filename, scores, evaluator):
+    """
+    Writes faithfulness scores to a CSV file.
+
+    Args:
+        filename (str): The name of the CSV file.
+        scores (dict): A dictionary of answer-context faithfulness scores.
+        evaluator (str): The name of the evaluator.
+
+    Returns:
+        None
+    """
+    # Open the CSV file in write mode
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        # Write the title row
+        title = f"Answer-Context-Faithfulness-{evaluator}"
+        writer.writerow([title])
+
+        # Assuming all contexts arrays have the same length
+        num_contexts = len(next(iter(scores.values())))
+        # Write the header row
+        header = ["Answer"] + [f"Context_{i}_Score" for i in range(num_contexts)]
+        writer.writerow(header)
+
+        # Write the data rows
+        for llm_answer, contexts_scores in scores.items():
+            row = [
+                llm_answer
+            ] + contexts_scores.tolist()  # Convert the numpy array to a list
+            writer.writerow(row)
+
+    print(f"Data written to {filename} successfully.")
+
+
+def write_answer_relevance_to_csv(filename, scores, evaluator):
+    """
+    Writes answer relevance scores to a CSV file.
+
+    Args:
+        filename (str): The name of the CSV file.
+        scores (dict): A dictionary of query-answer relevance scores.
+        evaluator (str): The name of the evaluator.
+
+    Returns:
+        None
+    """
+    # Open the CSV file in write mode
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        # Write the title row
+        title = f"Query-Answer-Relevance-{evaluator}"
+        writer.writerow([title])
+
+        # Write the header row
+        header = ["Query", "Answer_Score"]
+        writer.writerow(header)
+
+        # Write the data rows
+        for query, llm_answer_score in scores.items():
+            row = [query, llm_answer_score]  # Convert the numpy array to a list
+            writer.writerow(row)
+
+    print(f"Data written to {filename} successfully.")
+
+
+def write_correctness_to_csv(filename, scores, evaluator):
+    """
+    Writes correctness scores to a CSV file.
+
+    Args:
+        filename (str): The name of the CSV file.
+        scores (dict): A dictionary of ground-truth answer correctness scores.
+        evaluator (str): The name of the evaluator.
+
+    Returns:
+        None
+    """
+    # Open the CSV file in write mode
+    with open(filename, mode="w", newline="") as file:
+        writer = csv.writer(file)
+        # Write the title row
+        title = f"Ground-Truth-Answer-Correctness-{evaluator}"
+        writer.writerow([title])
+
+        # Write the header row
+        header = ["Ground_Truth", "Answer_Score"]
+        writer.writerow(header)
+
+        # Write the data rows
+        for answer, llm_answer_score in scores.items():
+            row = [answer, llm_answer_score]  # Convert the numpy array to a list
+            writer.writerow(row)
+
+    print(f"Data written to {filename} successfully.")
 
 
 class VectorStore:
@@ -48,15 +231,17 @@ class VectorStore:
     def createIndex(self, indexName, settings):
         # Create a new index with name indexName
         indexName = indexName.lower()
-        if indexName in self.mq.get_indexes()["results"]:
+        current_indexes = [d["indexName"] for d in self.mq.get_indexes()["results"]]
+        if indexName in current_indexes:
             print(f"Index already exists: {indexName} ")
+            # Set indexName as the current index
+            print(f"Defaulting to index connection. Index connected: {indexName} ")
+            self.indexName = indexName
             return
-
         try:
             self.split_method = settings["split_method"]
             self.distance_metric = settings["distance_metric"]
             self.model = settings["model"]
-
         except:
             print(
                 f"Settings could not be parsed to create a new index with name: {indexName}"
@@ -130,6 +315,7 @@ class VectorStore:
         # "pre+context": "Some pre Text", "post_context": "Some post Text}
         # convert document to a dict of document properties
         n_docs = min(len(documents), maxDocs)
+
         try:
             for i in range(n_docs):
                 chunk_id = documents[i]["id"]
@@ -160,6 +346,7 @@ class VectorStore:
                     "post_context": post_context,
                 }
                 print(f"Indexing document: {document}")
+                print(f" Successfully indexed document number: {i}")
                 self.indexDocument(document)
         except:
             print(
@@ -183,14 +370,14 @@ class VectorStore:
     def getBackground(self, query, num_ref, lang, rerank=False, prepost_context=False):
         # Retrieve top k documents from indexName based on query
         # Modify filter string to include language
-        filterstring = f"lang:{lang}"  # Add language to filter string
+        # filterstring = f"lang:{lang}"  # Add language to filter string
         # print(f"Filterstring: {filterstring}")
 
         # Semantic Search
         response_sem = self.mq.index(self.indexName).search(
             q=query,  # Query string
             limit=num_ref,  # Number of documents to retrieve
-            # attributes_to_retrieve=["text", "chunnum_ref"],
+            # attributes_to_retrieve=["text", "chunk"],
             # filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
         )
 
@@ -244,9 +431,8 @@ class VectorStore:
             print(f" Semantic Search Results: {response_sem}")
             print(f" Lexical Search Results: {response_lex}")
             for response in response_sem["hits"]:
-                if response["_score"] > query_threshold:
-                    full_results.append(response)
-                    plain_text_results.append(response["text"])
+                full_results.append(response)
+                plain_text_results.append(response["text"])
             for response in response_lex["hits"]:
                 full_results.append(response)
                 plain_text_results.append(response["text"])
@@ -257,7 +443,7 @@ class VectorStore:
             data = {
                 "query": query,
                 "raw_results": plain_text_results,
-                "num_results": num_ref,
+                "num_results": num_ref * 2,  # To get all results
             }
 
             # Get response from reranker
@@ -310,19 +496,25 @@ class VectorStore:
     def emptyIndex(self):
         # Delete all Documents in the index
         print(f"Deleting all documents in index: {self.indexName}")
-        allDocs = self.mq.index(self.indexName).search(q="", limit=1000)
-        print(f"Documents in index: {len(allDocs['hits'])}")
-        while len(allDocs["hits"]) > 0:
-            for doc in allDocs["hits"]:
+        currentDocs = self.mq.index(self.indexName).search(q="", limit=500)
+        delete_count = len(currentDocs["hits"])
+        nAllDocs = self.mq.index(self.indexName).get_stats()["numberOfDocuments"]
+        while len(currentDocs["hits"]) > 0:
+            for doc in currentDocs["hits"]:
                 self.mq.index(self.indexName).delete_documents([doc["_id"]])
-            allDocs = self.mq.index(self.indexName).search(q="", limit=1000)
+            currentDocs = self.mq.index(self.indexName).search(q="", limit=500)
+            print(f'Len of current docs {len(currentDocs["hits"])}')
+            print(
+                f"Deleted : {delete_count} documents of {nAllDocs} documents in index: {self.indexName} "
+            )
+            delete_count += len(currentDocs["hits"])
         # Check if done
-        if len(allDocs["hits"]) == 0:
-            print(f"Done: Deleted all documents in index: {self.indexName}")
+        if len(currentDocs["hits"]) == 0:
+            print(f"Done! Deleted all documents in index: {self.indexName}")
         else:
             print(
                 f"Failed to delete all documents in index: {self.indexName}. \n"
-                f" Documents left: {len(allDocs['hits'])}"
+                f" Documents left: {len(currentDocs['hits'])}"
             )
 
     def token_estimate(self, text):  # OpenAI suggest a token consists of 3/4 words
@@ -430,7 +622,7 @@ class RagPipe:
         # Retrieve top k documents from indexName based on query
 
         # Update filter string with language for index search
-        background, contexts, ids = self.DB.getBackground(
+        background, contexts, contexts_ids = self.DB.getBackground(
             query,
             num_ref=num_ref,
             lang=lang,
@@ -456,13 +648,13 @@ class RagPipe:
         ]
 
         result = self.sendToLLM(messages)
-        return result, contexts, ids
+        return result, contexts, contexts_ids
 
     def evaluate_context_relevance(
         self,
         queries,
         contexts=None,
-        ids=None,
+        contexts_ids=None,
         goldPassages=None,
         evaluator="sem_similarity",
     ):
@@ -504,7 +696,7 @@ class RagPipe:
                     # Convert measure to float and append to list
                     measurements.append(round(float(measure), 3))
                 # Compute mean context relevance over all contexts per query
-                scores[query] = np.mean(np.array(measurements))
+                scores[query] = np.array(measurements)
 
             return scores
 
@@ -529,7 +721,9 @@ class RagPipe:
         result = self.evalSendToLLM(messages)
         return result
 
-    def evaluate_faithfulness(self, answers, contexts, evaluator="sem_similarity"):
+    def evaluate_faithfulness(
+        self, answers, contexts, evaluator="sem_similarity", contexts_ids=None
+    ):
         # Type checking
         if not isinstance(answers, list):
             raise TypeError(
@@ -544,17 +738,15 @@ class RagPipe:
                 if evaluator == "sem_similarity":
                     measure = self.semantic_similarity(single_context, answer)
                 elif evaluator == "llm_judge":
-                    measure = self.llm_binary_faithfullness(single_context, answer)
+                    measure = self.llm_binary_faithfulness(single_context, answer)
 
                 measurements.append(round(float(measure), 3))
-            # Compute mean faithfullness over all contexts per answer
-            scores[answer] = np.mean(
-                np.array(measurements)
-            )  # Insert evaluation measure here
+            # Compute mean faithfulness over all contexts per answer
+            scores[answer] = np.array(measurements)  # Insert evaluation measure here
 
         return scores
 
-    def llm_binary_faithfullness(self, context, answer):
+    def llm_binary_faithfulness(self, context, answer):
         messages = [
             {
                 "role": "system",
@@ -583,7 +775,7 @@ class RagPipe:
                 f"Queries must be of type list, but got {type(queries).__name__}."
             )
 
-        scores = []
+        scores = {}
         for answer, query in zip(answers, queries):
             print(f"Answer: {answer}")
             print(f"Query: {query}")
@@ -593,7 +785,7 @@ class RagPipe:
             elif evaluator == "llm_judge":
                 measure = self.llm_binary_answer_relevance(answer, query)
             # Convert measure to float and append to list
-            scores.append(round(float(measure), 3))
+            scores[query] = round(float(measure), 3)
         return scores
 
     def llm_binary_answer_relevance(self, answer, query):
@@ -627,7 +819,7 @@ class RagPipe:
                 f"Queries must be of type list, but got {type(ground_truths).__name__}."
             )
 
-        scores = []
+        scores = {}
         for answer, ground_truth in zip(answers, ground_truths):
             print(f"Answer: {answer}")
             print(f"Ground truth: {ground_truth}")
@@ -636,7 +828,7 @@ class RagPipe:
             elif evaluator == "llm_judge":
                 measure = self.llm_binary_correctness(answer, ground_truth)
 
-            scores.append(round(float(measure), 3))
+            scores[answer] = round(float(measure), 3)
         return scores
 
     def llm_binary_correctness(self, answer, ground_truth):
@@ -663,7 +855,7 @@ class RagPipe:
 
     def semantic_similarity(self, sentence1, sentence2):
         model = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1")  # cheap model for dev
-
+        # all-mpnet-base-v2 , more performant model, but slower
         sentence1_vec = model.encode([sentence1])
 
         sentence2_vec = model.encode([sentence2])
@@ -721,7 +913,7 @@ class RagPipe:
                     "question": question,
                     "answer": "",
                     "contexts": [],
-                    "context_ids": [],
+                    "contexts_ids": [],
                     "ground_truth": ground_truth,
                 }
             )
@@ -729,12 +921,12 @@ class RagPipe:
         # Iterate over the rag elements and get the answer from the LLM model and the contexts from the Vector DB
         for rag_element in self.rag_elements:
             print(f"Current Question: {rag_element['question']}")
-            llmanswer, contexts, context_ids = self.answerQuery(
+            llmanswer, contexts, contexts_ids = self.answerQuery(
                 rag_element["question"], rerank, prepost_context, lang
             )  # Get answer from LLM model
             rag_element["answer"] = llmanswer
             rag_element["contexts"] = contexts
-            rag_element["context_ids"] = context_ids
+            rag_element["contexts_ids"] = contexts_ids
 
     def eval(self, method=None, queries=None, evaluator="sem_similarity"):
         # Select evalaution method to run
@@ -759,13 +951,24 @@ class RagPipe:
             else:
                 contexts = [element["contexts"] for element in self.rag_elements]
                 queries = [element["question"] for element in self.rag_elements]
-                scores = self.evaluate_context_relevance(queries, contexts, evaluator)
+                contexts_ids = [
+                    element["contexts_ids"] for element in self.rag_elements
+                ]
+                scores = self.evaluate_context_relevance(
+                    queries, contexts, contexts_ids=contexts_ids, evaluator=evaluator
+                )
             return scores
 
         if method == "faithfulness":
             answers = [element["answer"] for element in self.rag_elements]
             contexts = [element["contexts"] for element in self.rag_elements]
-            scores = self.evaluate_faithfulness(answers, contexts, evaluator)
+            contexts_ids = [element["contexts_ids"] for element in self.rag_elements]
+            scores = self.evaluate_faithfulness(
+                answers,
+                contexts,
+                contexts_ids=contexts_ids,
+                evaluator=evaluator,
+            )
             return scores
 
         if method == "answer_relevance":
@@ -783,11 +986,18 @@ class RagPipe:
         if method == "all":
             queries = [element["question"] for element in self.rag_elements]
             contexts = [element["contexts"] for element in self.rag_elements]
+            contexts_ids = [element["context_ids"] for element in self.rag_elements]
+
             answers = [element["answer"] for element in self.rag_elements]
             ground_truths = [element["ground_truth"] for element in self.rag_elements]
 
-            cr_scores = self.evaluate_context_relevance(queries, contexts, evaluator)
-            f_scores = self.evaluate_faithfulness(answers, contexts, evaluator)
+            cr_scores = self.evaluate_context_relevance(
+                queries, contexts, evaluator=evaluator, contexts_ids=contexts_ids
+            )
+
+            f_scores = self.evaluate_faithfulness(
+                answers, contexts, evaluator=evaluator, contexts_ids=contexts_ids
+            )
             ar_scores = self.evaluate_answer_relevance(queries, answers, evaluator)
             c_scores = self.evaluate_correctness(answers, ground_truths, evaluator)
 
@@ -797,6 +1007,25 @@ class RagPipe:
                 "answer_relevance": ar_scores,
                 "correctness": c_scores,
             }
+
+    def eval_context_goldPassages(self, goldPassages):
+        # Evaluate context relevance with goldPassages
+        contexts = [element["contexts"] for element in self.rag_elements]
+        queries = [element["question"] for element in self.rag_elements]
+        contexts_ids = [element["contexts_ids"] for element in self.rag_elements]
+
+        matches = []
+        for query, context_ids, goldPs in zip(queries, contexts_ids, goldPassages):
+            print(f"Context_ids: {context_ids}")
+            print(f"goldPasssageContexts: {goldPs}")
+
+            # Count number of matches in context_ids and goldPs
+            # Beware, that the number of elements in goldPs per query varies.
+            set_goldPs = set(goldPs)
+            number_matches = sum(1 for element in context_ids if element in set_goldPs)
+            print(f"Query: {query}")
+            print(f"Number of matches: {number_matches}")
+            matches.append(number_matches)
 
 
 class DatasetHelpers:
@@ -840,6 +1069,25 @@ class DatasetHelpers:
 
         return corpus_list, queries, ground_truths
 
+    def loadMiniBioasq(self):
+        # Load MiniBioasq dataset
+        print("Loading MiniBioasq dataset")
+        corpus = load_dataset("enelpol/rag-mini-bioasq", "text-corpus")["train"]
+        # Create a list of dictionaries with keys: passage, id
+        corpus_list = []
+        for passage, iD in zip(corpus["passage"], corpus["id"]):
+            corpus_list.append({"text": passage, "id": iD})
+
+        QA = load_dataset("enelpol/rag-mini-bioasq", "question-answer-passages")[
+            "train"
+        ]
+
+        queries = QA["question"]
+        ground_truths = QA["answer"]
+        goldPassages = QA["relevant_passage_ids"]
+
+        return corpus_list, queries, ground_truths, goldPassages
+
     def loadQM(self):
         # Load QM dataset
         print("Loading AIT QM dataset")
@@ -849,7 +1097,7 @@ class DatasetHelpers:
         ground_truths = None
 
         # Skip the first row
-        df = pd.read_excel("./data/100_questions.xlsx", skiprows=1, usecols=[1])
+        df = pd.read_excel("./data/100_questions.xlsx", skiprows=0, usecols=[1])
         queries = df.iloc[:, 0].tolist()
 
         return corpus_list, queries, ground_truths
