@@ -1,0 +1,102 @@
+Query-Context-Relevance-sem_similarity
+Query,Context_0_Score,Context_1_Score,Context_2_Score,Context_3_Score,Context_4_Score,Context_5_Score
+Was Abraham Lincoln the sixteenth President of the United States?,0.634,0.68,0.624,0.11,0.075,0.68
+Did Lincoln sign the National Banking Act of 1863?,0.684,0.5,0.451,0.534,0.426,0.684
+Did his mother die of pneumonia?,0.277,0.518,0.436,0.118,0.426,0.11
+How many long was Lincoln's formal education?,0.731,0.501,0.519,0.408,0.167,0.406
+When did Lincoln begin his political career?,0.762,0.593,0.589,0.424,0.414,0.356
+What did The Legal Tender Act of 1862 establish?,0.673,0.415,0.464,0.371,0.673,0.327
+Who suggested Lincoln grow a beard?,0.718,0.454,0.394,0.323,0.718,0.41
+When did the Gettysburg address argue that America was born?,0.66,0.603,0.443,0.468,0.378,0.336
+Did Lincoln beat John C. Breckinridge in the 1860 election?,0.772,0.72,0.59,0.72,0.594,0.566
+Was Abraham Lincoln the first President of the United States?,0.598,0.619,0.603,0.411,0.428,0.471
+Did Lincoln start his political career in 1832?,0.771,0.624,0.632,0.525,0.771,0.572
+Did Lincoln ever represent Alton & Sangamon Railroad?,0.59,0.614,0.49,0.259,0.355,0.59
+Which county was Lincoln born in?,0.682,0.616,0.708,0.542,0.47,0.337
+When did Lincoln first serve as President?,0.57,0.646,0.644,0.483,0.377,0.6
+Who assassinated Lincoln?,0.543,0.655,0.649,0.612,0.655,0.649
+Did Lincoln win the election of 1860?,0.73,0.788,0.637,0.456,0.73,0.644
+Who was the general in charge at the Battle of Antietam?,0.519,0.409,0.301,0.519,0.28,0.022
+Why did Lincoln issue the Emancipation Proclamation?,0.587,0.728,0.629,0.588,0.629,0.728
+Do scholars rank lincoln among the top three presidents?,0.693,0.488,0.554,0.693,0.47,0.408
+Did lincoln have 18 months of schooling?,0.686,0.477,0.58,0.582,0.58,0.686
+Was Lincoln chosen as a presidential candidate in 1860?,0.799,0.632,0.724,0.659,0.514,0.799
+How old was Lincoln in 1816?,0.655,0.66,0.705,0.544,0.609,0.502
+When was the first photgraph of lincoln taken?,0.689,0.669,0.627,0.461,0.436,0.592
+How long was Lincoln's legal Career?,0.622,0.516,0.571,0.367,0.493,0.517
+What trail did Lincoln use a Farmers' Almanac in? ,0.398,0.482,0.517,0.379,0.371,0.287
+Did Abraham Lincoln live in the Frontier?,0.562,0.606,0.603,0.606,0.558,0.603
+Did Lincoln's Wife's Family support slavery?,0.613,0.605,0.532,0.605,0.551,0.479
+Who is most noted for his contributions to the theory of molarity and molecular weight?,0.581,0.567,0.326,0.22,0.134,0.08
+Who graduated in ecclesiastical law at the early age of 20 and began to practice?,0.869,0.418,0.183,0.083,0.163,0.406
+When did he publish another memoria?,0.63,0.447,0.213,0.312,0.072,0.468
+When did he become a professor?,0.409,0.383,0.562,0.058,0.086,0.072
+Is it true that he became a professor in 1820?,0.369,0.374,0.544,0.393,0.544,-0.036
+Was Lorenzo Romano Amedeo Carlo Avogadro an Italian savant?,0.564,0.633,0.465,0.445,0.564,0.633
+"Was Amedeo Avogadro born in Turin August 9th 1776 to a noble ancient family of Piedmont, Italy?",0.915,0.402,0.554,0.468,0.915,0.402
+Is he most noted for his contributions to the theory of molarity and molecular weight?,0.562,0.556,0.324,0.24,0.102,0.151
+Was King Victor Emmanuel III there to pay homage to Avogadro ?,0.642,0.37,0.416,0.642,0.33,0.24
+Is Avogadro 's number commonly used to compute the results of chemical reactions ?,0.625,0.626,0.545,0.625,0.478,0.626
+Did the scientific community not reserve great attention to his theory ?,0.563,0.536,0.163,0.194,0.207,0.24
+Can the title of this famous 1811 paper be roughly translated into english?,0.251,0.408,0.402,0.2,0.279,0.209
+What happened in 1833?,0.325,0.427,0.353,0.336,0.134,0.324
+Who determined the dependence of the boiling of water with atmospheric pressure?,0.513,0.348,0.388,0.513,0.065,0.281
+What is named after him?,0.509,0.473,0.199,0.103,-0.078,0.194
+When did he publish a collection?,0.278,0.373,0.155,0.229,0.176,0.201
+Is it true that he published a collection in 1738?,0.491,0.416,0.483,0.104,0.189,0.422
+Is it true that thermometer had 100 for the freezing point?,0.592,0.527,0.36,0.592,0.222,0.527
+Was Celsius born in Uppsala in Sweden?,0.836,0.639,0.683,0.445,0.836,0.683
+"Was Anders Celsius (November 27, 1701 April 25, 1744) a Swedish astronomer?",0.963,0.772,0.631,0.644,0.631,0.963
+Is The Celsius crater on the Moon named after him?,0.935,0.573,0.655,0.279,0.081,0.935
+Who was the first to perform and publish careful experiments aiming at the definition of an international temperature scale on scientific grounds ?,0.741,0.646,0.402,0.741,0.442,0.646
+The Celsius crater on the Moon is what?,0.836,0.527,0.479,0.268,-0.022,0.836
+Is the Celsius crater on the Moon named after him ?,0.935,0.573,0.655,0.279,0.081,0.935
+Had his thermometer 100 for the freezing point of water and 0 for the boiling point ?,0.648,0.589,0.334,0.648,0.28,0.589
+Was Celsius born in Uppsala in Sweden ?,0.836,0.639,0.683,0.445,0.836,0.683
+Did he not determine the dependence of the boiling of water with atmospheric pressure -LRB- in excellent agreement with modern data -RRB- ?,0.45,0.348,0.219,0.45,0.299,0.355
+What happened from 1730 to 1744?,0.393,0.242,0.263,0.199,0.281,0.214
+What happened in 1745?,0.382,0.319,0.268,0.168,0.268,0.237
+Are beetles insects?,0.787,0.739,0.634,0.655,0.616,0.487
+Can beetles be found in polar regions?,0.67,0.54,0.509,-0.033,0.487,0.171
+Do beetles antennae function primarily as organs of smell?,0.779,0.637,0.6,0.482,0.503,0.4
+What are the three sections of a beetle?,0.767,0.74,0.278,0.525,0.247,0.767
+Which defense mechanism uses colour or shape to deceive potential enemies?,0.546,0.555,0.141,0.555,0.546,0.32
+Which type of beetle is a pest of potato plants?,0.786,0.682,0.683,0.786,0.683,0.187
+How can beetle larvae be differentiated from other insect larvae?,0.702,0.663,0.577,0.311,0.531,0.663
+What do beetles eat?,0.677,0.695,0.768,0.566,0.536,0.562
+What are the similarities between beetles and grasshoppers?,0.67,0.563,0.542,0.528,0.616,0.565
+Are certain species of beetles considered pests?,0.772,0.686,0.767,-0.015,0.686,0.284
+Is a beetle's general anatomy uniform?,0.669,0.494,0.481,0.465,0.175,0.669
+Are beetles endopterygotes?,0.807,0.634,0.651,0.575,0.176,0.503
+How many species of beetles are there?,0.782,0.836,0.695,0.303,0.457,0.552
+When are sperm cells transferred to the female?,0.606,0.444,0.31,0.14,0.606,0.138
+What is the study of beetles called?,0.732,0.628,0.69,0.563,0.442,0.732
+"Is it possible that there are more than 350,000 species of beetles?",0.864,0.766,0.664,0.141,0.45,0.864
+Is the Adephaga suborder larger than the Polyphaga suborder?,0.658,0.531,0.45,0.229,0.241,0.416
+Do carrion beetles eat dung?,0.696,0.568,0.584,0.696,0.44,0.584
+What are prey of various animals including birds and mammals?,0.313,0.5,0.404,0.048,0.119,0.313
+What was given by Aristotle for the hardened shield like forewings?,0.693,0.42,0.341,0.084,0.223,-0.009
+Who or what vary greatly in form within the coleoptera?,0.436,0.478,0.501,0.389,0.377,0.365
+Are many beetles territorial?,0.648,0.654,0.713,0.483,0.574,-0.147
+Are beetles endopterygotes with complete metamorphosis?,0.899,0.651,0.613,0.212,0.899,0.532
+Oxygen is what?,0.619,0.226,0.252,-0.0,0.239,0.619
+Is there a thriving industry in the collection of beetle specimens for amateur and professional collectors ?,0.722,0.656,0.568,0.486,0.722,0.568
+Have coleopterists formed organisations to facilitate the study of beetles ?,0.875,0.583,0.516,0.592,0.516,0.875
+"Is the study of beetles called coleopterology , and its practitioners are coleopterists ?",0.917,0.706,0.56,0.706,0.463,0.917
+May a single female lay from several dozen to several thousand eggs during her lifetime ?,0.685,0.292,0.222,0.172,0.123,0.685
+Can beetles be found in almost all habitats?,0.792,0.687,0.617,-0.003,0.619,0.21
+What happened on plants and fungi?,0.228,0.021,0.295,0.048,0.013,0.126
+Was Calvin Coolidge the twenty-ninth vice president?,0.698,0.679,0.582,0.222,0.041,0.539
+"Was Calvin Coolidge born in Plymouth, Windsor County, Vermont?",0.777,0.52,0.618,0.623,0.514,0.362
+Did Coolidge graduate from Black River Academy?,0.724,0.649,0.533,0.724,0.494,0.649
+When did he drop John from his name?,0.224,0.463,0.402,0.077,0.308,0.187
+When did Coolidge meet and marry Grace Anna Goodhue?,0.793,0.543,0.429,0.543,0.481,0.345
+What period of rapid economic growth did the United States experience during Coolidge's presidency?,0.706,0.484,0.291,0.334,0.564,0.538
+What did Coolidge do after graduating from Amherst?,0.827,0.776,0.6,0.776,0.59,0.47
+Of what state was Coolidge governor?,0.683,0.718,0.624,0.636,0.63,0.718
+Who appointed Harlan Fiske Stone to the Supreme Court?,0.779,0.751,0.542,0.751,0.168,0.779
+Was Coolidge the thirteenth President of the United States?,0.669,0.65,0.535,0.14,0.579,0.587
+Was Calvin Coolidge Republican?,0.751,0.602,0.645,0.431,0.529,0.521
+Was Calvin Coolidge a governor of MassachuS08_setts?,0.694,0.685,0.617,0.181,0.592,0.544
+When was Coolidge born?,0.619,0.629,0.565,0.629,0.39,0.537
+Where did Coolidge's grandfather had government offices?,0.642,0.686,0.607,0.621,0.532,0.686

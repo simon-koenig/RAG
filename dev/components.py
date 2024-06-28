@@ -39,6 +39,10 @@ def escape_markdown(text):
     return text
 
 
+def token_estimate(text):  # OpenAI suggest a token consists of 3/4 words
+    return len(re.findall(r"\w+", text)) * 4 / 3
+
+
 def chunkText(text, method="recursive", chunk_size=512, chunk_overlap=128):
     """
     Splits the input text into chunks.
@@ -63,7 +67,7 @@ def chunkText(text, method="recursive", chunk_size=512, chunk_overlap=128):
     elif method == "sentence":
         # We estimate a sentence to have 50 characters on average
 
-        splitter = NLTKTextSplitter()
+        splitter = NLTKTextSplitter(".")
         splitted_text = splitter.split_text(text)
 
     elif method == "fixed_size":
@@ -208,6 +212,25 @@ def write_correctness_to_csv(filename, scores, evaluator):
 
 
 class VectorStore:
+    """
+    A class representing a vector store for indexing and retrieving documents.
+
+    Attributes:
+        mq (marqo.Client): The Marqo client for interacting with the vector store.
+        indexName (str): The name of the current index.
+        model (str): The model used for generating sentence embeddings.
+
+    Methods:
+        __init__(self, url): Initializes a VectorStore object with the specified Marqo client URL.
+        connectIndex(self, indexName): Connects to the specified index.
+        createIndex(self, indexName, settings): Creates a new index with the specified name and settings.
+        deleteIndex(self, indexName): Deletes the index with the specified name.
+        indexDocument(self, document): Indexes a single document.
+        indexDocuments(self, documents, maxDocs=1000000): Indexes multiple documents.
+        retrieveDocuments(self, query, k, rerank=False, prepost_context=False): Retrieves documents based on a query.
+        getBackground(self, query, num_ref, lang, rerank=False, prepost_context=False): Retrieves background information based on a query.
+    """
+
     def __init__(self, url):
         self.mq = marqo.Client(url=url)
         self.indexName = None
@@ -216,6 +239,15 @@ class VectorStore:
         )
 
     def connectIndex(self, indexName):
+        """
+        Connects to the specified index.
+
+        Args:
+            indexName (str): The name of the index to connect to.
+
+        Returns:
+            None
+        """
         # Check if the index exists and connect to it
         indexName = indexName.lower()
         if indexName in [
@@ -229,6 +261,19 @@ class VectorStore:
             )
 
     def createIndex(self, indexName, settings):
+        """
+        Creates a new index with the specified name and settings.
+
+        Args:
+            indexName (str): The name of the index to create.
+            settings (dict): The settings for the new index. It should have the following keys:
+            - 'split_method': The method used for splitting text.
+            - 'distance_metric': The distance metric used for similarity calculations.
+            - 'model': The model used for generating sentence embeddings.
+
+        Returns:
+            None
+        """
         # Create a new index with name indexName
         indexName = indexName.lower()
         current_indexes = [d["indexName"] for d in self.mq.get_indexes()["results"]]
@@ -273,16 +318,36 @@ class VectorStore:
             print(f"Failed to created new index: {indexName} with settings: {settings}")
 
     def deleteIndex(self, indexName):
-        # Delete index by indexName
+        """
+        Deletes an index by indexName.
+
+        Args:
+            indexName (str): The name of the index to be deleted.
+
+        Returns:
+            None
+        """
         try:
             # now remove the marqo index
             self.mq.delete_index(indexName)
-            print(f" Sucessfuylly deleted Index: {indexName}")
+            print(f"Successfully deleted Index: {indexName}")
         except:
             print("Unable to delete: " + indexName)
 
     def indexDocument(self, document):
-        # Documents has to be a dict with keys 'id' and 'text'
+        """
+        Indexes a document in the search engine.
+
+        Args:
+            document (dict): A dictionary representing the document to be indexed. It should have the following keys:
+                - 'chunk_id': The ID of the document chunk.
+                - 'text': The main text of the document.
+                - 'pre_context': The pre-context of the document.
+                - 'post_context': The post-context of the document.
+
+        Returns:
+            None
+        """
         chunk_id = document["chunk_id"]
         main_text = document["text"]
         pre_context = document["pre_context"]
@@ -293,13 +358,11 @@ class VectorStore:
                 [
                     {
                         "text": main_text,
-                        "tokens": self.token_estimate(main_text),
                         "chunk": chunk_id,
                         "pre_context": pre_context,
                         "post_context": post_context,
                     }
                 ],
-                # Arguments in tensor_fields will have vectors generated for them. For best recall and performance, minimise the number of arguments in tensor_fields.
                 tensor_fields=["text"],
             )
 
@@ -310,10 +373,20 @@ class VectorStore:
             )
 
     def indexDocuments(self, documents, maxDocs=1000000):
-        # Index a single document. Which has the form
-        # document = {"id": "1", "text": "Some Text",
-        # "pre+context": "Some pre Text", "post_context": "Some post Text}
-        # convert document to a dict of document properties
+        """
+        Indexes a list of documents.
+
+        Args:
+            documents (list): A list of dictionaries representing the documents to be indexed.
+                Each dictionary should have the following keys: 'id', 'text'
+            maxDocs (int, optional): The maximum number of documents to index. Defaults to 1000000.
+
+        Raises:
+            Exception: If there is an error in indexing the corpus.
+
+        Returns:
+            None
+        """
         n_docs = min(len(documents), maxDocs)
 
         try:
@@ -340,7 +413,6 @@ class VectorStore:
 
                 document = {
                     "text": main_text,
-                    "tokens": self.token_estimate(main_text),
                     "chunk_id": chunk_id,
                     "pre_context": pre_context,
                     "post_context": post_context,
@@ -355,7 +427,20 @@ class VectorStore:
             )
 
     def retrieveDocuments(self, query, k, rerank=False, prepost_context=False):
-        # Retrieve top k documents from indexName based on query
+        """
+        Retrieve top k documents from indexName based on the given query.
+
+        Args:
+            query (str): The query string.
+            k (int): The number of documents to retrieve.
+            rerank (bool, optional): Whether to perform reranking. Defaults to False.
+            prepost_context (bool, optional): Whether to include pre and post context. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing two lists of the same length - contexts and ids.
+                - contexts (list): The retrieved document texts.
+                - ids (list): The IDs of the retrieved documents.
+        """
         response = self.mq.index(self.indexName).search(
             q=query,  # Query string
             limit=k,  # Number of documents to retrieve
@@ -368,6 +453,20 @@ class VectorStore:
         return contexts, ids
 
     def getBackground(self, query, num_ref, lang, rerank=False, prepost_context=False):
+        """
+        Retrieves background information and contexts based on a given query. Filterstring under developement
+
+        Args:
+            query (str): The query string.
+            num_ref (int): The number of documents to retrieve.
+            lang (str): The language to filter the documents.
+            rerank (bool, optional): Whether to rerank the search results. Defaults to False.
+            prepost_context (bool, optional): Whether to include pre and post context in the background. Defaults to False.
+
+        Returns:
+            tuple: A tuple containing the background string, a list of contexts, and a list of context IDs.
+        """
+
         # Retrieve top k documents from indexName based on query
         # Modify filter string to include language
         # filterstring = f"lang:{lang}"  # Add language to filter string
@@ -485,16 +584,42 @@ class VectorStore:
         return background, contexts, context_ids
 
     def getIndexes(self):
+        """
+        Retrieves the indexes from the message queue.
+
+        Returns:
+            A list of indexes.
+        """
         return self.mq.get_indexes()["results"]
 
     def getIndexStats(self):
+        """
+        Retrieves the statistics of the specified index.
+
+        Returns:
+            dict: A dictionary containing the statistics of the index.
+        """
         return self.mq.index(self.indexName).get_stats()
 
     def getIndexSettings(self):
+        """
+        Retrieves the settings of the specified index.
+
+        Returns:
+            dict: A dictionary containing the settings of the index.
+        """
         return self.mq.index(self.indexName).get_settings()
 
     def emptyIndex(self):
-        # Delete all Documents in the index
+        """
+        Delete all documents in the index.
+
+        This method deletes all documents in the specified index by iterating through the documents
+        and deleting them in batches of 500. It prints the progress and the number of documents deleted.
+
+        Returns:
+            None
+        """
         print(f"Deleting all documents in index: {self.indexName}")
         currentDocs = self.mq.index(self.indexName).search(q="", limit=500)
         delete_count = len(currentDocs["hits"])
@@ -516,9 +641,6 @@ class VectorStore:
                 f"Failed to delete all documents in index: {self.indexName}. \n"
                 f" Documents left: {len(currentDocs['hits'])}"
             )
-
-    def token_estimate(self, text):  # OpenAI suggest a token consists of 3/4 words
-        return len(re.findall(r"\w+", text)) * 4 / 3
 
 
 class RagPipe:

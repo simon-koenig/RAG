@@ -1,0 +1,102 @@
+Query-Context-Relevance-sem_similarity
+Query,Context_0_Score,Context_1_Score,Context_2_Score,Context_3_Score,Context_4_Score,Context_5_Score
+Ich habe auf einer Dienstreise über Nacht gearbeitet. Wie buche ich das korrekterweise im HCM,0.201,0.393,0.16,0.239,0.261,0.248
+"Gib mir das Dokument für Zusammenarbeit mit anderen Institutionen, wenn ich DSGVO-relevante Informationen verarbeite.",0.32,0.2,0.15,0.229,0.168,0.168
+Wo finde ich in der W01 die Information über die Unterschriftenregelung.,0.205,0.198,0.345,0.401,0.333,0.388
+Wie erstelle ich einen Dienstreiseantrag?,0.607,0.478,0.507,0.453,0.442,0.242
+Welche Publikationen müssen in der Publikationsdatenbank eingetragen werden und wie mache ich das?,0.675,0.691,0.51,0.296,0.142,0.055
+"Welche Verträge müssen in der Vertragsdatenbank eingetragen werden, wie mache ich das und wie finde ich diese Verträge wieder?",0.363,0.572,0.461,0.394,0.314,0.204
+Welche Richtlinien muss ein Projektleiter kennen?,0.308,0.35,0.353,0.37,0.326,0.118
+Wie viele Gegenangebote brauche ich für Einkauf im Wert 10.000 Euro?,0.474,0.25,0.303,0.293,0.222,0.286
+Ab welchen Betrag brauche ich Vergleichtsangebot?,0.304,0.329,0.294,0.122,0.166,0.206
+Was muss ich in Doxis für G1 ablegen?,0.336,0.075,0.224,0.133,0.244,0.195
+Welche Aktivitäten muss ich beim Stage Gate 3 vorab machen (Checkliste)?,0.528,0.541,0.192,0.125,0.527,0.198
+Ich möchte die Cloud-Anwendung XYZ für ein Forschungsprojekt einsetzen. Welche Richtlinien und Prozesse sind beim Umgang mit Cloud Services zu beachten? ,0.149,0.324,0.329,0.229,0.205,0.284
+"Ein Beispiel könnte sein: Welche Schritte muss ich zu welchen Zeitpunkten setzen, um einen Antrag bis zur Einreichung zu bringen. Als Antwort hätte ich dann gerne: Wann muss die Kalkulation erfolgen, wann soll die Beschreibung für die Vorstellung des Projektansatzes fertig sein, wo finde ich dann die Vorlage, wann muss die Kalkulation gemacht werden, wann und wo wird das Projekt in Salesforce angelegt, wie funktioniert die Kalkulation in Unit4, .....",0.33,0.199,0.336,0.302,0.147,0.303
+Ab welchem Wert braucht man ein Gegenangebot bei der Beschaffung?,0.357,0.293,0.228,0.281,0.318,0.311
+Wann endet die fiktive Normalarbeitszeit am Freitag?,0.391,0.486,0.57,0.46,0.424,0.341
+Welche Schritte muss ich für das Anlegen eines neuen Projektes durchlaufen?,0.374,0.324,0.231,0.207,0.337,0.138
+Welche Schulungen brauche ich um ins nächste Level innerhalb meines Karrierewegs zu kommen?,0.31,0.219,0.189,0.164,0.273,0.11
+Wo wird Customer Feedback dokumentiert?,0.556,0.41,0.439,0.454,0.452,0.407
+Wie lege ich einen unterschriebenen NDA in Doxis ab?,0.259,0.237,0.131,0.212,0.141,0.299
+Q: Wie beantrage ich eine virtual machine? A: ,0.563,0.305,0.188,0.318,0.186,0.051
+Wie lautet die Kostenstelle für Aus- und Fortbildung?,0.219,0.248,0.12,0.115,0.098,0.093
+Muss ich das Formular für die Refundierung an mein Sekretariat schicken oder gibt es in Doxis einen eigenen Prozess dafür?,0.498,0.383,0.297,0.208,0.301,0.148
+"Wen kontaktiere ich, wenn der Beamer in einem GG4 Besprechungsraum schon wieder nicht funktioniert?",0.547,0.547,0.419,0.247,0.337,0.421
+Wer unterschreibt ein Angebot?,0.417,0.599,0.221,0.384,0.216,0.246
+Was ist der Ablauf vom Technical Auditing?,0.47,0.544,0.429,0.444,0.458,0.318
+"Wie trage ich korrekt Reise- und Arbeitszeiten ein, wenn ich z.B. im Flugzeug außerhalb der fiktiven Normalarbeitszeit arbeite?",0.657,0.656,0.615,0.274,0.15,0.181
+Wie führe ich eine KM-Geld Abrechnung durch?,0.554,0.642,0.667,0.296,0.252,0.117
+Under what circumstances should data be considered personal information?,0.681,0.723,0.597,0.616,0.391,0.256
+Who should participate in an internal(external) ISO Audit?,0.565,0.619,0.597,0.503,0.529,0.549
+Ich reise beruflich nach xy. Darf ich meinen Laptop / Handy mitnehmen?,0.087,0.22,0.175,0.151,0.131,0.218
+Gibt es Vorlagen / Best practice im Haus zur IPR Regelung in Projekten?,0.211,0.121,0.209,0.154,0.084,0.169
+Welche Vorgaben gibt es für die Nutzung von ChatGPT im AIT?,0.217,0.19,0.205,0.202,0.259,0.176
+"z.B.: Wie errechnet sich die fiktive Normalarbeitszeit, wenn ich nicht Vollzeit arbeite?",0.488,0.589,0.394,0.28,0.225,0.223
+"Welche Schulungen braucht man, um den Junior loszuwerden?",0.154,0.186,0.206,0.174,0.26,0.165
+During what hours am I allowed to book my working hours?,0.555,0.582,0.398,0.318,0.217,0.399
+Wie funktioniert das Entwicklungsgespräch? Gerne. Bitte sieh Dir im QM-System unter der dem Reiter Personal die Prozessbeschreibung P06-AIT Entwicklungsgespräch an.,0.51,0.462,0.493,0.259,0.468,0.438
+Was gibt es für Prozesse und Richtlinien für QM-Dokumente?,0.557,0.203,0.355,0.336,0.484,0.134
+Wer unterschreibt Consortium Agreement?,0.533,0.374,0.257,0.26,0.316,0.146
+Wie gebe ich Privataufenthalt bei einer Dienstreise ein,0.349,0.284,0.372,0.27,0.286,0.345
+"In welchem Dokument finde ich Anweisungen, wie ich die Zahlungen an Konsortialpartner abwickeln soll wenn AIT Koordinator ist?",0.352,0.233,0.255,0.177,0.362,0.218
+Bitte erkläre mir den Stage-Gate-Prozess in einfachen Worten.,0.668,0.563,0.626,0.257,0.236,0.173
+Was sind bei datenschutzrechtlichen Anforderungen an Proband:innen zu bedenken?,0.353,0.443,0.343,0.329,0.286,0.329
+Für welche Art von Stellen muss man den P01-Formular erstellen lassen?,0.323,0.265,0.291,0.308,0.256,0.217
+"Ich bin neu am AIT. Was sind die wichtigsten Informationen, dich ich zum Einstieg wissen muss?",0.279,0.409,0.35,0.188,0.237,0.158
+Wie ist die Kosten- und Erlösplanung auszufüllen?,0.48,0.372,0.239,0.212,0.19,0.203
+Wie berechne ich Aufschläge und Erträge?,0.469,0.376,0.298,0.06,0.056,0.089
+Wo melde ich ein defektes Türschloss (Batterie zu tauschen),0.18,0.404,0.153,0.153,0.22,0.107
+Im welchen Prozess finde ich etwas über Mobbing?,0.414,0.552,0.263,0.486,0.125,0.021
+"Beispiel 1: PL aus Unit xxx reicht KF-Projektantrag in der ersten Stufe eines zweistufigen Verfahrens ein. AIT-Kosten/Revenue in der Höhe von xxx. Förderorganisation ist xxx. Wer (konkrete Personennamen!) muss das Antragsformular, welches an die Förderorganisation geschickt wird, unterschreiben und was ist der konkrete(!) Ablauf damit gegenüber extern unterschrieben werden darf?",0.51,0.447,0.357,0.255,0.407,0.321
+"Beispiel 2: (a) Privatstiftung, (b) externe Firma (z.B. Microsoft) schreibt einen Call für Forschungsprojekte zu folgenden Konditionen aus: xxx. Ist dies intern als AF oder als KF zu behandeln?",0.352,0.083,0.384,0.478,0.447,0.46
+"Welchen Wechselkurs kann ich heranziehen, um eine Fremdwährungsrechnung auf den korrekten Rechnungsbetrag im Zuge des Freigabeprozesses überprüfen zu können und wo finde ich einen solchen korrekten Wechselkurs?",0.335,0.227,0.167,0.269,0.319,0.214
+Welche Regelungen zur Lasersicherheit in Laboren gibt es am AIT?,0.484,0.282,0.293,0.286,0.499,0.38
+Ab welchem Betrag muss ein Projekt von der GF freigegeben werden?,0.262,0.261,0.258,0.309,0.321,0.291
+Was sind die konzernweit gültigen Homeoffice-Richtlinien?,0.327,0.38,0.082,0.242,0.202,0.088
+Was ist bei anstehender Karenz/Sabattical zu beachten?,0.398,0.312,0.218,0.171,0.209,0.295
+Wie melde Ich einen Nebenbeschäftigung,0.475,0.648,0.31,0.464,0.122,0.232
+Welche Dokumente sind für Gate2 bei Horizon Europe Projekten abzulegen?,0.499,0.46,0.346,0.257,0.269,0.229
+Wann und an wen muss ich eine Krankmeldung oder Zeitbestätigung vom Arzt schicken?,0.442,0.31,0.278,0.322,0.254,0.212
+Um wieviel Uhr sollte das AIT Gebäude spätestens verlassen werden?,0.315,0.188,0.158,0.141,0.257,0.266
+Wie beantrage ich einen Höhenverstellbaren Tisch?,0.292,0.312,0.151,0.391,0.164,0.213
+Darf ich während der Homeoffice Zeiten unterwegs arbeiten z.b. im Zug?,0.248,0.373,0.181,0.039,0.295,0.15
+Darf man Geschenke annehmen,0.563,0.279,0.176,0.215,0.259,0.184
+Erkläre mir die Schritte für eine Nachkalkulation,0.35,0.359,0.427,0.077,0.143,0.201
+Wie laufen Rechnungsfreigaben am AIT ab?,0.262,0.361,0.454,0.378,0.349,0.272
+Wann erhält man Ersatzruhe?,0.195,0.377,0.307,0.168,0.266,0.182
+"Frage: Welche Schritte muss man befolgen, um Inventar auszubuchen? Antwort: Um Inventar auszubuchen befolgen Sie bitte folgende Schritte: - Füllen Sie das Formular I10-MD01-AIT (mit Link versehen) aus - Senden Sie das Formular an XY. - Stellen Sie das Inventar zur Abholung bereit. Weitere Informationen finden Sie in den folgenden Dokumenten: ....",0.422,0.512,0.448,0.588,0.404,0.326
+"Mein Kind ist krank geworden, und ich muss zu Hause bleiben. Muss ich administrativ etwas unternehmen?",0.23,0.193,0.26,0.261,0.162,0.207
+Wie unterscheiden sich die Prozesse zwischen Auftragsforschung und Ko-finanzierten Projekten?,0.391,0.339,0.407,0.222,0.277,0.408
+Beschreibe mir den Ablauf eines AF Projektes?,0.497,0.157,0.408,0.395,0.169,0.131
+Welche QM-Dokumente gelten speziell für meine Competence Unit?,0.471,0.402,0.396,0.376,0.297,0.285
+"Wie kann ich Reisekosten geltend machen, wenn ich für die Dienstreise mein Klimaticket verwendet habe?",0.56,0.424,0.354,0.434,0.215,0.267
+Wer ist der DPO am AIT?,0.452,0.401,0.228,0.12,0.138,0.109
+Welche QM-Dokumente gibt es im Bereich Security?,0.383,0.383,0.235,0.24,0.335,0.286
+Wie ist QM am AIT organisiert,0.32,0.386,0.416,0.308,0.187,0.207
+Wer sind ISO14011 Verantwortliche,0.507,0.338,0.148,0.307,0.363,0.394
+Wer sind die QM Verantwortlichen,0.464,0.46,0.235,0.449,0.245,0.13
+Wie erfolgt das Risikomanagement für Projekte?,0.377,0.486,0.466,0.383,0.39,0.247
+Wir möchten einen Ebent bzw. eine Organisation sponsern. Was müssen wir beachten und wie gehe ich vor?,0.288,0.324,0.253,0.166,0.273,0.267
+"Ich möchte einen Projektantrag einreichen, welche AIT-internen Prozesse muss ich bis wann einhalten, um den Antrag fristgerecht einreichen zu können?",0.283,0.35,0.414,0.331,0.303,0.144
+Wie ist Telearbeit geregelt,0.584,0.382,0.364,0.315,0.087,0.061
+Wie ist der QM-Prozess zur Validierung von Labormessgeräten?,0.421,0.505,0.404,0.305,0.238,0.245
+Was ist ein HOC? Wer ist der für mich (oder <Person XY> oder <Abteilung XY>) zuständige HOC?,0.482,0.236,0.281,0.224,0.234,0.226
+Wo muss ich die Ergebnisse der Lessons Learned ablegen?,0.332,0.22,0.216,0.293,0.137,0.232
+"Ich muss am Wochenende Arbeiten, um eine Projekt-Deadline einhalten zu können. Welche Genehmigung brauche ich dafür?",0.4,0.369,0.356,0.29,0.233,0.35
+"Meine Dienstreise beginnt am Sa, um rechtzeitig Mo Früh bei einer Konferenz zu sein (Flugreise). Welche max. Arbeitszeiten muss ich hier beachten. Gibt es sonstige Probleme die sich durch die Reisezeit am Wochenende ergeben? Brauche ich besondere Freigaben? Wenn die Reise auch den Sonntag betrifft (Reise Flug Economy), gebührt mir dann Ersatzruhe?",0.353,0.31,0.228,0.044,0.2,0.364
+Was ist bei dem versenden von Ergebnisberichten zu beachten? Hier gilt das 4-Augen-Prinzip. Ein Ergebnisbericht ist vom Erstautor:in im Doxis abzulegen und einer weiteren Person zu stempeln. Siehe auch RL01-AIT Kapitel 4.3.,0.333,0.502,0.32,0.391,0.246,0.311
+Frage: Wie wird in unseren Projekten mit Haftung umgegangen:    Bot: Die Haftung und Gewährleistung wird in den ALBs (W01-MD06-AIT [Link zu Dokument]) geregelt.  Unter Punkt 9 Haftung und Gewährleistungen finden sie die Informationen.  .... + Weitere AIT Dokumente (Quellen mit Link!) in denen es um Haftung geht,0.406,0.283,0.283,0.203,0.269,0.355
+"Bitte zeige mir das aktuelle Dokument der Entnahmeliste für Gifte.  Hier ist der Link zum Dokument RL-XYZ, welches ab 12.03.2024 gültig ist.",0.319,0.376,0.299,0.254,0.39,0.398
+beschreibe die Aufgaben der in QM/ISO14011 involvierten Personen am AIT (in Center X),0.305,0.28,0.407,0.392,0.333,0.337
+Wo finde ich Informationen zum Unterschriftenlauf von einem EU Projekt,0.506,0.428,0.505,0.334,0.295,0.26
+Was muss ich bei einer Dienstreiseabrechnung bei einer Fahrt mit der Bahn/einem Flugzeug/einem PKW im Feld Grenze eingeben?,0.315,0.305,0.396,0.404,0.333,0.34
+Welche Gate-Freigabe brauche ich für * Einreichung Kurzantrag * Unterschrift LOI * Unterschrift Grant Agreement * Unterschrift Declaration of Honor * etc,0.371,0.372,0.281,0.276,0.259,0.343
+Welche Schulungen muss ich für den Senior absolvieren?,0.16,0.281,0.163,0.324,0.23,0.189
+Wie kann ich mich zu einem Seminar anmelden?,0.247,0.497,0.325,0.245,0.235,0.254
+ich bin krank - was muss ich beachten?,0.266,0.257,0.103,0.14,0.089,0.117
+Wer ist für Firmen-AUtos zuständig?,0.199,0.311,0.306,0.209,0.257,0.157
+"An wen soll ich mich wenden, wenn ich eine Flüssigkeit zu einem Labor in den USA versenden möchte?",0.078,0.184,0.449,0.264,0.321,0.475
+Wie lauten die RGB Farbcodes der AIT Farbwelt?,0.385,0.358,0.23,0.273,0.273,0.251
+Wie soll ich Projektdaten anonymisieren?,0.287,0.528,0.329,0.388,0.253,0.245
+Nach welchem System sind wir akkreditiert?,0.284,0.403,0.524,0.251,0.263,0.271
