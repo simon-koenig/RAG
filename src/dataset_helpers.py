@@ -47,7 +47,7 @@ class DatasetHelpers:
     def loadMiniBioasq(self):
         # Load MiniBioasq dataset
         print("Loading MiniBioasq dataset")
-        corpus = load_dataset("enelpol/rag-mini-bioasq", "text-corpus")["train"]
+        corpus = load_dataset("enelpol/rag-mini-bioasq", "text-corpus")["test"]
         # Create a list of dictionaries with keys: passage, id
         corpus_list = []
         for passage, iD in zip(corpus["passage"], corpus["id"]):

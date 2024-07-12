@@ -14,6 +14,7 @@ from vector_store import VectorStore
 LLM_URL = "http://10.103.251.104:8040/v1"
 LLM_NAME = "llama3"
 MARQO_URL = "http://10.103.251.104:8882"
+MARQO_URL_GPU = "http://10.103.251.104:8880"
 
 # Run eval in a few lines
 parameters = {
@@ -45,14 +46,14 @@ parameters = {
 
 # Load the dataset
 datasetHelpers = DatasetHelpers(parameters["chunking_params"])
-corpus_list, queries, ground_truths = datasetHelpers.loadMiniWiki()  # Mini wiki
+corpus_list, queries, ground_truths = datasetHelpers.loadQM()  # Mini wiki
 
 # Load the VectorStore
 documentDB = VectorStore(MARQO_URL)  # Connect to marqo client via python API
 # View indexes
 print(documentDB.getIndexes())
 # Connect to the miniwikiindex
-documentDB.connectIndex("miniwikiindex")
+documentDB.connectIndex("ait-qm")
 stats = documentDB.getIndexStats()
 print(stats)
 # Load the RagPipe
@@ -67,12 +68,15 @@ pipe.run(
     corpus_list,
     newIngest=False,
     maxDocs=10,
-    maxQueries=3,
+    maxQueries=1,
     lang="EN",
     rerank=False,
     prepost_context=False,
 )
 
+# Print results
+for elem in pipe.rag_elements:
+    pprint(elem)
 
 # Evaluate the rag pipeline, methods = "context_relevance", "answer_relevance", "faithfulness", "correctness", "all"
 # evaluator = "sem_similarity", "llm_judge"

@@ -13,4 +13,3 @@ ragatouille==0.0.8.post2
 Requests==2.32.3
 sentence_transformers==3.0.1
 streamlit==1.28.2
-uvicorn==0.30.1

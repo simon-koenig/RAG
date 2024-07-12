@@ -2,6 +2,7 @@
 
 import marqo
 import requests
+from utils import chunkText
 
 # Reranker Endpoint
 RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
@@ -170,6 +171,47 @@ class VectorStore:
                 "Documents has to be a dict with keys 'id' and 'text'"
             )
 
+    def indexDocumentBunch(self, documentBunch):
+        """
+        Indexes a list of documents in the search engine.
+
+        Args:
+            documentBunch (list): A list of dictionaries, with each dict representing the document to be indexed.
+            It should have the following keys:
+                - 'chunk_id': The ID of the document chunk.
+                - 'text': The main text of the document.
+                - 'pre_context': The pre-context of the document.
+                - 'post_context': The post-context of the document.
+
+        Returns:
+            None
+        """
+
+        # Make bunches of bunchSize documents to be indexed max at once
+        bunchSize = 128
+        bunches = [
+            documentBunch[i : i + bunchSize]
+            for i in range(0, len(documentBunch), bunchSize)
+        ]
+        # Iteratore over bunches of documents and index them simultaneously
+
+        for i, bunch in enumerate(bunches):
+            try:
+                # Index the bunch of documents
+                self.mq.index(self.indexName).add_documents(
+                    bunch,
+                    tensor_fields=["text"],
+                )
+                print(f"Indexed {len(bunch)} documents in bunch {i}")
+
+            except:
+                print(
+                    "Ingest error."
+                    "DocumentBunch has to be a list of dicts with at least the"
+                    "keys: 'chunk_id', 'text',"
+                    "'pre_context', and 'post_context'"
+                )
+
     def indexDocuments(self, documents, maxDocs=1000000):
         """
         Indexes a list of documents.
@@ -186,43 +228,53 @@ class VectorStore:
             None
         """
         n_docs = min(len(documents), maxDocs)
+        all_documents_chunked = []  # List to store all dictionaries of chunked documents
+        # Iterate over all documents and get the document id and text of full document
+        for n in range(n_docs):
+            document_id = documents[n]["id"]
+            main_text = documents[n]["text"]
+            # print(f"Indexing document: {document_id}")
+            # print(f"Full Document Text: {main_text}")
+            # Chunk the document into smaller chunks
+            chunks = chunkText(
+                text=main_text,
+                method="recursive",
+                chunk_size=256,
+                chunk_overlap=0,
+            )
 
-        try:
-            for i in range(n_docs):
-                chunk_id = documents[i]["id"]
-                main_text = documents[i]["text"]
-                print(f" Current i = {i}")
+            # Iterate over all chunks and add pre and post context to them
+            lenChunks = len(chunks)
+            # print(f"Number of chunks: {lenChunks}")
+            for i, chunk in enumerate(chunks):
+                # print(f" Current i = {i}")
+                pre_context = ""
+                post_context = ""
                 # Exceptions are needed the first two and last two documents
-                if i == 0:
-                    pre_context = ""
-                    post_context = documents[i + 1]["text"] + documents[i + 2]["text"]
-                elif i == 1:
-                    pre_context = documents[i - 1]["text"]
-                    post_context = documents[i + 1]["text"] + documents[i + 2]["text"]
-                elif i == n_docs - 1:
-                    pre_context = documents[i - 1]["text"] + documents[i - 2]["text"]
-                    post_context = ""
-                elif i == n_docs - 2:
-                    pre_context = documents[i - 1]["text"] + documents[i - 2]["text"]
-                    post_context = documents[i + 1]["text"]
-                else:
-                    pre_context = documents[i - 1]["text"] + documents[i - 2]["text"]
-                    post_context = documents[i + 1]["text"] + documents[i + 2]["text"]
+                if i > 1:
+                    pre_context += chunks[i - 2] + "  "
+
+                if i > 0:
+                    pre_context += chunks[i - 1] + " "
+
+                if i < lenChunks - 1:
+                    post_context += chunks[i + 1] + " "
+
+                if i < lenChunks - 2:
+                    post_context += chunks[i + 2] + " "
 
                 document = {
-                    "text": main_text,
-                    "chunk_id": chunk_id,
+                    "text": chunk,
+                    "chunk_id": document_id,
                     "pre_context": pre_context,
                     "post_context": post_context,
                 }
-                print(f"Indexing document: {document}")
-                print(f" Successfully indexed document number: {i}")
-                self.indexDocument(document)
-        except:
-            print(
-                f"Error in indexing corpus for index: {self.indexName}, "
-                " documents has to be a list of dictionaries with keys 'id' and 'text'"
-            )
+                # print(f"Indexing document: {document}")
+                all_documents_chunked.append(document)
+
+        # Pass the chunked documents to the indexDocumentBunch method
+        self.indexDocumentBunch(all_documents_chunked)
+        print(f" Successfully chunked  {n+1} documents!")
 
     def retrieveDocuments(self, query, k, rerank=False, prepost_context=False):
         """
@@ -419,13 +471,13 @@ class VectorStore:
             None
         """
         print(f"Deleting all documents in index: {self.indexName}")
-        currentDocs = self.mq.index(self.indexName).search(q="", limit=500)
+        currentDocs = self.mq.index(self.indexName).search(q="", limit=1000)
         delete_count = len(currentDocs["hits"])
         nAllDocs = self.mq.index(self.indexName).get_stats()["numberOfDocuments"]
         while len(currentDocs["hits"]) > 0:
             for doc in currentDocs["hits"]:
                 self.mq.index(self.indexName).delete_documents([doc["_id"]])
-            currentDocs = self.mq.index(self.indexName).search(q="", limit=500)
+            currentDocs = self.mq.index(self.indexName).search(q="", limit=1000)
             print(f'Len of current docs {len(currentDocs["hits"])}')
             print(
                 f"Deleted : {delete_count} documents of {nAllDocs} documents in index: {self.indexName} "

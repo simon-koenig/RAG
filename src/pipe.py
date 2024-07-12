@@ -82,6 +82,15 @@ class RagPipe:
         print(f" Language model connected: {LLM_NAME}")
 
     def setCostumPrompt(self, userPrompt):
+        """
+        Sets the custom prompt for the chatbot.
+
+        Parameters:
+        - userPrompt (str): The custom prompt provided by the user.
+
+        Returns:
+        None
+        """
         self.PROMPT = userPrompt
         print(f"Prompt set: {userPrompt}")
 
@@ -93,6 +102,19 @@ class RagPipe:
         presence_pen=0.0,
         repeat_pen=0.0,
     ):
+        """
+        Sends a query to the OpenAI endpoint for generating a response using the LLM model.
+
+        Args:
+            messages (list): A list of messages to be used as input for generating the response.
+            model_temp (float, optional): The temperature parameter for controlling the randomness of the generated response. Defaults to 0.0.
+            answer_size (int, optional): The maximum number of tokens in the generated response. Defaults to 100.
+            presence_pen (float, optional): The presence penalty parameter for encouraging or discouraging the model to talk about specific topics. Defaults to 0.0.
+            repeat_pen (float, optional): The repetition penalty parameter for discouraging the model from repeating the same phrases. Defaults to 0.0.
+
+        Returns:
+            str: The generated response from the LLM model.
+        """
         headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer N/A ",
@@ -126,6 +148,19 @@ class RagPipe:
         presence_pen=0.0,
         repeat_pen=0.0,
     ):
+        """
+        Sends a query to the OpenAI endpoint for language model evaluation.
+
+        Args:
+            messages (list): A list of messages to send to the language model.
+            model_temp (float, optional): The temperature value for model sampling. Defaults to 0.0.
+            answer_size (int, optional): The maximum number of tokens in the generated response. Defaults to 1.
+            presence_pen (float, optional): The presence penalty value. Defaults to 0.0.
+            repeat_pen (float, optional): The repeat penalty value. Defaults to 0.0.
+
+        Returns:
+            str: The generated response from the language model. Which is either 0 or 1.
+        """
         headers = {
             "Content-Type": "application/json",
             "Authorization": "Bearer N/A ",
@@ -152,6 +187,18 @@ class RagPipe:
         return result
 
     def answerQuery(self, query, rerank=False, prepost_context=False, lang="EN"):
+        """
+        Answers a user query based on the given parameters.
+
+        Args:
+            query (str): The user query to be answered.
+            rerank (bool, optional): Whether to rerank the documents based on the query. Defaults to False.
+            prepost_context (bool, optional): Whether to include pre/post context in the answer. Defaults to False.
+            lang (str, optional): The language of the query. Defaults to "EN".
+
+        Returns:
+            tuple: A tuple containing the result of the query, the contexts, and the context IDs.
+        """
         # Retrieve top k documents from indexName based on query
 
         # Update filter string with language for index search
