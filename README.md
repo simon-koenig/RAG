@@ -23,27 +23,11 @@ Ubuntu 22.04.3
 Depending on the dataset you want to use. 
 Generic dataset import - under developement. 
 
-## Tunable parameters, with examples
-- chunking_params:
-    - chunk_size: 512  # Number of characters in a chunk
-    - chunk_overlap: 0  # Number of overlapping characters in a chunk
-    - chunk_method: "recursive"  # Method of chunking
-- index_settings:
-    - split_length: 2  # Number of elements in a split
-    - split_method: "sentence"  # Method of splitting
-    - split_overlap: 0  # Number of overlapping tokens in a split
-    - distance_metric: "prenormalized-angular"  # Distance metric for ANN
-    - model: "flax-sentence-embeddings/all_datasets_v4_mpnet-base"  # Model for vector embedding
-- retrieval_settings:
-    - k_docs_to_retrieve: 5  # Number of documents to retrieve
-    - query_threshold: 0.5  # Query threshold
-    - pre_post_context_size: 100  # Number of tokens to add to context
-    - rerank: True  # Rerank documents
-    - prepost_context: True  # Add pre and post context
-- llm_settings:
-    - llm_name: "llama3"  # Name of the LLM
-    - model_temp: 0.5  # Model temperature
-    - answer_size: 100  # Number of tokens in answer
+## Tunable parameters
+- Reranking of index search results
+- Enriching index search results with pre text and post text
+- Large language model
+- Temperature of large language model 
 
 
 ## RAG system methodology
@@ -55,8 +39,161 @@ Generic dataset import - under developement.
 - Combine retrieved documents with query and send to llm 
 - Get llm answer based on the provided context
 
-## Example Usage
+## Workflow example
 
+Imports
+
+```python
+from csv_write import write_correctness_to_csv
+from dataset_helpers import DatasetHelpers
+from pipe import RagPipe
+from vector_store import VectorStore
+```
+
+Define API ENDPOINTS, e.g.:
+
+```python
+LLM_URL = "http://10.103.251.104:8040/v1"
+LLM_NAME = "llama3"
+MARQO_URL = "http://10.103.251.104:8882"
+```
+
+Create vector database object:
+
+```python
+documentDB = VectorStore(MARQO_URL)
+```
+
+
+
+
+Connect Index
+```python
+documentDB.connectIndex("my-favourite-index")
+```
+
+or Create Index 
+```python
+documentDB.createIndex("my-first-index")
+```
+
+Add documents to index
+```python
+documents = [
+    {
+                "id": "chunk001",
+                "text": "Basketball was invented by Dr. James Naismith in December 1891 in Springfield, Massachusetts."
+        },
+        {
+                "id": "chunk002",
+                "description": "The first game of basketball was played on December 21, 1891, and it ended with a score of 1-0."
+        },
+]
+
+documentDB.indexDocuments(documents)
+```
+
+Create pipeline object
+```python
+pipe = RagPipe()
+```
+
+Connect LLM to pipeline
+```python
+pipe.connectLLM(LLM_URL, LLM_NAME)
+```
+
+Link pipeline object to vector data base
+```python
+pipe.connectVectorStore(documentDB)
+```
+
+Run a single query with rag pipeline
+```python
+pipe.answerQuery("Who invented basketball?")
+```
+
+Or run the rag pipeline with multiple queries from dataset. Run with 5 queries, no reranking and no pre and post context for a sneak peek. 
+```python
+pipe.run(
+        queries,
+        rerank=False,
+        prepost_context=False,
+        maxQueries=5
+)
+```
+
+Look at the results 
+```python
+for elem in pipe.rag_elements:
+        print(elem)
+```
+
+Evaluate the results
+
+```python
+methods = "context_relevance", "answer_relevance", "faithfulness", "correctness", "all"
+
+evaluator = "sem_similarity", "llm_judge"
+scores = pipe.eval(method="context_relevance", evaluator="sem_similarity")
+
+print(scores)
+```
+
+Write evaluation results to a csv file
+
+```python
+write_correctness_to_csv("my-first-results", scores, evaluator="sem_similarity")
+```
+
+
+
+Load dataset
+
+
+```python
+# Load Mini Wikipedia dataset
+datasetHelpers = DatasetHelpers()
+corpus_list, queries, ground_truths = datasetHelpers.loadMiniWiki()
+```
+
+
+## Other useful methods
+
+
+Get stats of a specific index:
+
+```python
+stats = documentDB.getIndexStats()
+print(stats)
+```
+
+View indexes:
+
+```python
+print(documentDB.getIndexes())
+```
+
+Delete Index:
+
+```python
+documentDB.deleteIndex("my-least-favourite-index")
+```
+
+Delete all documents in current index:
+
+```python
+documentDB.emptyIndex()
+```
+
+
+## Example run
 - Have a look at bin/example-rag.py 
 - Run `python3 bin/example-rag.py` from the root directory.
+
+
+
+## License
+
+AIT internal use only !
 

@@ -1,5 +1,7 @@
 # Main object for RAG pipeline
 
+from pprint import pprint
+
 import numpy as np
 import requests
 from sentence_transformers import SentenceTransformer
@@ -129,6 +131,7 @@ class RagPipe:
         }
         endpoint = self.LLM_URL + "/chat/completions"
         print("Sending query to OpenAI endpoint: " + endpoint)
+        pprint(data)
         report = requests.post(endpoint, headers=headers, json=data).json()
         print("Received response...")
         if "choices" in report:
@@ -222,7 +225,7 @@ class RagPipe:
             + query
         )
         messages = [
-            {"role": "user", "content": self.PROMPT},
+            {"role": "system", "content": self.PROMPT},
             {"role": "assistant", "content": background},
             {"role": "user", "content": enforce_query},
         ]
@@ -508,7 +511,7 @@ class RagPipe:
             rag_element["contexts"] = contexts
             rag_element["contexts_ids"] = contexts_ids
 
-    def eval(self, method=None, queries=None, evaluator="sem_similarity"):
+    def eval(self, method=None, only_queries=None, evaluator="sem_similarity"):
         # Select evalaution method to run
         if method is None or method not in [
             "context_relevance",
@@ -524,10 +527,10 @@ class RagPipe:
         print(f"Using evaluator: {evaluator}")
 
         if method == "context_relevance":
-            if queries is not None:
+            if only_queries is not None:
                 # Bypass rag pipeline run and just evaluate context relevance
                 # betweeen queries and contexts
-                scores = self.evaluate_context_relevance(queries, contexts=None)
+                scores = self.evaluate_context_relevance(only_queries, contexts=None)
             else:
                 contexts = [element["contexts"] for element in self.rag_elements]
                 queries = [element["question"] for element in self.rag_elements]
@@ -606,3 +609,5 @@ class RagPipe:
             print(f"Query: {query}")
             print(f"Number of matches: {number_matches}")
             matches.append(number_matches)
+
+        return matches

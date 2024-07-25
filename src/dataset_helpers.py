@@ -44,7 +44,7 @@ class DatasetHelpers:
 
         return corpus_list, queries, ground_truths
 
-    def loadMiniBioasq(self):
+    def loadMiniBiosqa(self):
         # Load MiniBioasq dataset
         print("Loading MiniBioasq dataset")
         corpus = load_dataset("enelpol/rag-mini-bioasq", "text-corpus")["test"]

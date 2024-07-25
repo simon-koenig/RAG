@@ -44,6 +44,7 @@ parameters = {
     },
 }
 
+
 # Load the dataset
 datasetHelpers = DatasetHelpers(parameters["chunking_params"])
 corpus_list, queries, ground_truths = datasetHelpers.loadQM()  # Mini wiki

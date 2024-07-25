@@ -59,7 +59,7 @@ class VectorStore:
                 f"Index not found: {indexName}. Beware the index name must be lower case."
             )
 
-    def createIndex(self, indexName, settings):
+    def createIndex(self, indexName, settings=None):
         """
         Creates a new index with the specified name and settings.
 
@@ -82,33 +82,34 @@ class VectorStore:
             print(f"Defaulting to index connection. Index connected: {indexName} ")
             self.indexName = indexName
             return
-        try:
+        if settings:
             self.split_method = settings["split_method"]
             self.distance_metric = settings["distance_metric"]
             self.model = settings["model"]
-        except:
-            print(
-                f"Settings could not be parsed to create a new index with name: {indexName}"
-            )
+        else:
+            print(f"No settings provided for index: {indexName}. Use default settings.")
 
         try:
-            index_settings = {
-                "model": self.model,
-                "normalizeEmbeddings": True,
-                "textPreprocessing": {
-                    "splitLength": 2,
-                    "splitOverlap": 0,
-                    "splitMethod": self.split_method,
-                },
-                "annParameters": {
-                    "spaceType": self.distance_metric,
-                    # Tinker with this. Try increasing efConstruction along with m for better recall
-                    # https://www.pinecone.io/learn/series/faiss/hnsw/
-                    "parameters": {"efConstruction": 512, "m": 16},
-                },
-            }
-            print("Indexname: ", indexName)
-            self.mq.create_index(indexName, settings_dict=index_settings)
+            if settings:
+                index_settings = {
+                    "model": self.model,
+                    "normalizeEmbeddings": True,
+                    "textPreprocessing": {
+                        "splitLength": 2,
+                        "splitOverlap": 0,
+                        "splitMethod": self.split_method,
+                    },
+                    "annParameters": {
+                        "spaceType": self.distance_metric,
+                        # Tinker with this. Try increasing efConstruction along with m for better recall
+                        # https://www.pinecone.io/learn/series/faiss/hnsw/
+                        "parameters": {"efConstruction": 512, "m": 16},
+                    },
+                }
+                print("Indexname: ", indexName)
+                self.mq.create_index(indexName, settings_dict=index_settings)
+            else:
+                self.mq.create_index(indexName)
             # mq.create_index(indexName,  model='flax-sentence-embeddings/all_datasets_v4_mpnet-base')
             print(f"New index created: {indexName}  ")
             # Set indexName as the current index
@@ -157,7 +158,7 @@ class VectorStore:
                 [
                     {
                         "text": main_text,
-                        "chunk": chunk_id,
+                        "chunk_id": chunk_id,
                         "pre_context": pre_context,
                         "post_context": post_context,
                     }
@@ -294,11 +295,11 @@ class VectorStore:
         response = self.mq.index(self.indexName).search(
             q=query,  # Query string
             limit=k,  # Number of documents to retrieve
-            # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve
+            # attributes_to_retrieve=["text", "chunk_id"],  # Attributes to retrieve
         )
 
         contexts = [response["hits"][i]["text"] for i in range(len(response["hits"]))]
-        ids = [response["hits"][i]["chunk"] for i in range(len(response["hits"]))]
+        ids = [response["hits"][i]["chunk_id"] for i in range(len(response["hits"]))]
 
         return contexts, ids
 
@@ -361,7 +362,7 @@ class VectorStore:
                     context = f"Text: {text} "
                     contexts.append(context)
                     # Get current context id
-                    Id = response["hits"][i]["chunk"]
+                    Id = response["hits"][i]["chunk_id"]
                     context_ids.append(Id)
 
                     ## pprint.pprint(contexts)
