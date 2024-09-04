@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 # Reranker Endpoint
 RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
 query_threshold = 0.5
-num_ref = 3
+num_ref = 4
 
 
 class RagPipe:
@@ -40,16 +40,19 @@ class RagPipe:
 
     def __init__(self):
         self.PROMPT_EN = (
-            "You are a helpful assisstant. Context information is given in the following text."
-            "Use only information from the context to answer the question."
-            "If you are uncertain, you must say so. Give reasoning on your answer by only"
+            "You are a helpful assisstant. Context information is given in the following text. "
+            "Use the information from the context instead of pretrained knowledge to answer the question."
+            "If you are uncertain, you must say so. Give reasoning on your answer by only "
             "refering to the given context."
+            "The answer should be a explicit and explainatory. "
         )
         self.PROMPT_DE = (
-            "Sie sind ein hilfreicher Assistent. Antworte auf Deutsch. Kontextinformationen sind im folgenden Text enthalten."
-            "Verwenden Sie ausschließlich Informationen aus dem Kontext, um die Frage zu beantworten."
-            "Wenn Sie sich unsicher sind, müssen Sie das sagen. Begründen Sie Ihre Antwort, indem Sie nur"
-            "indem Sie sich auf den gegebenen Kontext beziehen."
+            "Sie sind ein hilfreicher Assistent. Antworte auf Deutsch. Kontextinformationen sind im folgenden Text enthalten. "
+            "Verwenden Sie ausschließlich Informationen aus dem Kontext, um die Frage zu beantworten. "
+            'Sagen Sie nichts wie "Basierend auf dem gegebenen Kontext", geben Sie einfach die Antwort. '
+            "Wenn Sie sich unsicher sind, müssen Sie das sagen. Begründen Sie Ihre Antwort, indem Sie nur "
+            "indem Sie sich auf den gegebenen Kontext beziehen. "
+            "Die Antwort sollte explizit und erläuternd sein. "
         )
         # Default to english
         self.PROMPT = self.PROMPT_EN
@@ -124,15 +127,29 @@ class RagPipe:
         data = {
             "model": self.LLM_NAME,
             "messages": messages,
-            # "temperature": model_temp,
-            # "max_tokens": answer_size,
+            "temperature": model_temp,
+            "max_tokens": answer_size,
             # "presence_penalty": presence_pen,
             # "repeat_penalty": repeat_pen,
         }
         endpoint = self.LLM_URL + "/chat/completions"
         print("Sending query to OpenAI endpoint: " + endpoint)
-        pprint(data)
-        report = requests.post(endpoint, headers=headers, json=data).json()
+
+        # pprint(data)
+        # Have neested try block to handle connection errors
+        try:
+            report = requests.post(endpoint, headers=headers, json=data)
+            pprint(report)
+            report = report.json()
+        except Exception as e:
+            print(f"Error: {e}")
+            try:
+                report = requests.post(endpoint, headers=headers, json=data)
+                pprint(report)
+                report = report.json()
+            except Exception as e:
+                print(f"Error in second try: {e}")
+
         print("Received response...")
         if "choices" in report:
             if len(report["choices"]) > 0:  # Always take the first choice.
@@ -141,6 +158,7 @@ class RagPipe:
                 result = "No result generated!"
         else:
             result = report
+
         return result
 
     def evalSendToLLM(
@@ -189,7 +207,15 @@ class RagPipe:
             result = report
         return result
 
-    def answerQuery(self, query, rerank=False, prepost_context=False, lang="EN"):
+    def answerQuery(
+        self,
+        query,
+        query_expansion=False,
+        rerank=False,
+        prepost_context=False,
+        background_reversed=False,
+        lang="EN",
+    ):
         """
         Answers a user query based on the given parameters.
 
@@ -205,14 +231,19 @@ class RagPipe:
         # Retrieve top k documents from indexName based on query
 
         # Update filter string with language for index search
+        print(f"Waiting for background!")
         background, contexts, contexts_ids = self.DB.getBackground(
             query,
             num_ref=num_ref,
             lang=lang,
             rerank=rerank,
             prepost_context=prepost_context,
+            background_reversed=background_reversed,
+            query_expansion=query_expansion,
+            LLM_URL=self.LLM_URL,
+            LLM_NAME=self.LLM_NAME,
         )
-
+        print(f"Background received!")
         # Update language prompt for LLM
         if lang == "DE":
             self.PROMPT = self.PROMPT_DE
@@ -221,7 +252,10 @@ class RagPipe:
 
         # Tell llm again to obey instructions
         enforce_query = (
-            "Given this context information and not prior knowledge, answer the following user query"
+            "The answer has to mention explicit details and be short. "
+            " Do not state that you are referring to the context. "
+            'The retrieved contexts always start with "Context:" '
+            "Given this context information and not prior knowledge, answer the following user query: "
             + query
         )
         messages = [
@@ -231,6 +265,9 @@ class RagPipe:
         ]
 
         result = self.sendToLLM(messages)
+        # Check difference background and context
+        # pprint(contexts)
+        # pprint(background)
         return result, contexts, contexts_ids
 
     def evaluate_context_relevance(
@@ -294,7 +331,7 @@ class RagPipe:
                 "content": "Given the following context and query,"
                 " Give a binary rating, either 0 or 1."
                 " Respond with 0 if an answer to the query cannot be derived from the given context. "
-                "Respond with 0 if an answer to the query can be derived from the given context.  "
+                "Respond with 1 if an answer to the query can be derived from the given context.  "
                 'Strictly respond with  either  "0" or "1"'
                 'The output must strictly and only be a single integer "0" or "1" and no additional text.',
             },
@@ -454,10 +491,13 @@ class RagPipe:
         self,
         questions,
         ground_truths=None,
+        goldPassagesIds=None,
         corpus_list=None,
         newIngest=False,
+        query_expansion=False,
         rerank=False,
         prepost_context=False,
+        background_reversed=False,
         lang="EN",
         maxDocs=1000000,
         maxQueries=1000000,
@@ -487,9 +527,14 @@ class RagPipe:
             print("No ground truths given!")
             ground_truths = [None] * len(questions)
 
-        for question, ground_truth in zip(
+        if goldPassagesIds is None:
+            print("No goldPassages given!")
+            goldPassagesIds = [None] * len(questions)
+
+        for question, ground_truth, goldPassages in zip(
             questions[:maxQueries],
             ground_truths[:maxQueries],
+            goldPassagesIds[:maxQueries],
         ):
             self.rag_elements.append(
                 {
@@ -498,18 +543,35 @@ class RagPipe:
                     "contexts": [],
                     "contexts_ids": [],
                     "ground_truth": ground_truth,
+                    "goldPassages": goldPassages,
                 }
             )
 
         # Iterate over the rag elements and get the answer from the LLM model and the contexts from the Vector DB
+        size = len(self.rag_elements)
         for rag_element in self.rag_elements:
             print(f"Current Question: {rag_element['question']}")
             llmanswer, contexts, contexts_ids = self.answerQuery(
-                rag_element["question"], rerank, prepost_context, lang
-            )  # Get answer from LLM model
+                rag_element["question"],
+                query_expansion,
+                rerank,
+                prepost_context,
+                background_reversed,
+                lang,
+            )
+            print("Received Answer from llm")
+            # Clean answer from llm
+            llmanswer = llmanswer.replace("\n", " ")
+            llmanswer = llmanswer.replace("\t", " ")
+            llmanswer = llmanswer.replace("\r", " ")
+            llmanswer = llmanswer.strip()
+
             rag_element["answer"] = llmanswer
             rag_element["contexts"] = contexts
             rag_element["contexts_ids"] = contexts_ids
+
+            # Update on progressq
+            print(f"Progress: {self.rag_elements.index(rag_element) + 1}/{size}")
 
     def eval(self, method=None, only_queries=None, evaluator="sem_similarity"):
         # Select evalaution method to run
@@ -605,9 +667,13 @@ class RagPipe:
             # Count number of matches in context_ids and goldPs
             # Beware, that the number of elements in goldPs per query varies.
             set_goldPs = set(goldPs)
-            number_matches = sum(1 for element in context_ids if element in set_goldPs)
+            set_context_ids = set(context_ids)
+            number_matches = sum(
+                1 for element in set_context_ids if element in set_goldPs
+            )
             print(f"Query: {query}")
             print(f"Number of matches: {number_matches}")
-            matches.append(number_matches)
+            print(f"Number of goldPs: {len(goldPs)}")
+            matches.append([number_matches, len(goldPs)])
 
         return matches

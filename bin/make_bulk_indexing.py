@@ -6,9 +6,7 @@ from pprint import pprint
 
 sys.path.append("./dev/")
 sys.path.append("./src/")
-from csv_write import write_context_relevance_to_csv
 from dataset_helpers import DatasetHelpers
-from pipe import RagPipe
 from vector_store import VectorStore
 
 # Define API ENDPOINTS
@@ -17,31 +15,54 @@ LLM_NAME = "llama3"
 MARQO_URL = "http://10.103.251.104:8882"
 MARQO_URL_GPU = "http://10.103.251.104:8880"
 
+##
+## Load Dataset
+##
 
-# Load QM queries
 datasetHelpers = DatasetHelpers()
-corpus_list, queries, ground_truths, goldPassages = datasetHelpers.loadMiniBioasq()
+corpus_list, queries, ground_truths = datasetHelpers.loadMiniWiki()
 
-
-# Load the VectorStore on marqo 2.10 with gpu
+##
+## Load the VectorStore
+##
 documentDB_GPU = VectorStore(MARQO_URL_GPU)  # Connect to marqo client via python API
-documentDB_GPU.connectIndex("minibios-qa-gpu")
 print(documentDB_GPU.getIndexes())  # Print all indexes
 
+
 ##
-## Index Docs and measure time
+## Delete old index
 ##
 
-# maxDocs = 43000
+documentDB_GPU.deleteIndex("miniwiki-gpu")  # Delete the index
 
 
-# Test index of maxDocs documents
-# start = time.time()
-# documentDB_GPU.indexDocuments(corpus_list, maxDocs)  # Add documents to the index
-# end = time.time()
-# ## Time for indexing 100 documents on marqo with cpu
-# print(f"Time for indexing {maxDocs} documents: {end - start} seconds")
+##
+## Create new index
+##
+
+index_settings = {
+    "split_length": 2,  # Number of elmenents in a split
+    "split_method": "sentence",  # Method of splitting
+    "split_overlap": 0,  # Number of overlapping tokens in a split
+    "distance_metric": "prenormalized-angular",  # Distance metric for ann
+    "model": "flax-sentence-embeddings/all_datasets_v4_mpnet-base",  # Model for vector embedding
+}
+
+documentDB_GPU.createIndex("miniwiki-gpu", index_settings)  # Create a new index
 
 
-# documentDB_GPU.emptyIndex()  # Empty the index
+##
+## Index documents
+##
+
+
+maxDocs = 100000  # Number of documents to index
+documentDB_GPU.connectIndex("miniwiki-gpu")  # Connect to the minibio
+start = time.time()
+documentDB_GPU.indexDocuments(corpus_list, maxDocs)  # Add documents to the index
+end = time.time()
+## Time for indexing 100 documents on marqo with cpu
+print(f"Time for indexing {maxDocs} documents: {end - start} seconds")
+
+
 print(documentDB_GPU.getIndexStats())  # Print index stats

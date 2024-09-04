@@ -132,3 +132,72 @@ def write_correctness_to_csv(filename, scores, evaluator):
             writer.writerow(row)
 
     print(f"Data written to {filename} successfully.")
+
+
+def write_pipe_results_to_csv(data, filename):
+    # Define the column names
+    fieldnames = [
+        "question",
+        "answer",
+        "contexts",
+        "contexts_ids",
+        "ground_truth",
+        "goldPassages",
+    ]
+
+    # Write to CSV file
+    with open(filename, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
+
+        # Write header
+        writer.writeheader()
+
+        # Write rows
+        for entry in data:
+            # Convert lists to strings for CSV format
+            entry["contexts"] = ", ".join(entry["contexts"])
+            entry["contexts_ids"] = ", ".join(map(str, entry["contexts_ids"]))
+            entry["goldPassages"] = ", ".join(map(str, entry["goldPassages"]))
+
+            writer.writerow(entry)
+
+    print(f"Data has been written to {filename}")
+
+
+# Function to get from rag results csv to pipe.rag_elements data structure
+def read_pipe_results_from_csv(filename):
+    # Initialize the list to store the data
+    data = []
+
+    # Open the CSV file
+    with open(filename, mode="r", newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+
+        # Read each row in the CSV file
+        for row in reader:
+            # Convert strings back to lists
+            if row["contexts"]:
+                row["contexts"] = [
+                    context.strip()
+                    for context in row["contexts"].split(" Context: ")
+                    if context
+                ]
+            else:
+                row["contexts"] = []
+
+            row["contexts_ids"] = (
+                list(map(int, row["contexts_ids"].split(", ")))
+                if row["contexts_ids"]
+                else []
+            )
+            row["goldPassages"] = (
+                list(map(int, row["goldPassages"].split(", ")))
+                if row["goldPassages"]
+                else []
+            )
+
+            # Append the row (as a dictionary) to the data list
+            data.append(row)
+
+    print(f"Data has been read from {filename}")
+    return data

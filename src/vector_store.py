@@ -1,5 +1,7 @@
 # Vector Store for RAG pipeline
 
+from pprint import pprint
+
 import marqo
 import requests
 from utils import chunkText
@@ -7,7 +9,6 @@ from utils import chunkText
 # Reranker Endpoint
 RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
 query_threshold = 0.5
-num_ref = 3
 
 
 class VectorStore:
@@ -203,7 +204,7 @@ class VectorStore:
                     bunch,
                     tensor_fields=["text"],
                 )
-                print(f"Indexed {len(bunch)} documents in bunch {i}")
+                print(f"Indexed {len(bunch)} chunks in bunch {i}")
 
             except:
                 print(
@@ -264,6 +265,11 @@ class VectorStore:
                 if i < lenChunks - 2:
                     post_context += chunks[i + 2] + " "
 
+                ## Remove special characters
+                pre_context = pre_context.replace("\n", " ")
+                post_context = post_context.replace("\n", " ")
+                chunk = chunk.replace("\n", " ")
+
                 document = {
                     "text": chunk,
                     "chunk_id": document_id,
@@ -298,12 +304,23 @@ class VectorStore:
             # attributes_to_retrieve=["text", "chunk_id"],  # Attributes to retrieve
         )
 
-        contexts = [response["hits"][i]["text"] for i in range(len(response["hits"]))]
-        ids = [response["hits"][i]["chunk_id"] for i in range(len(response["hits"]))]
+        contexts = [hit["text"] for hit in response["hits"]]
+        ids = [hit["chunk_id"] for hit in response["hits"]]
 
         return contexts, ids
 
-    def getBackground(self, query, num_ref, lang, rerank=False, prepost_context=False):
+    def getBackground(
+        self,
+        query,
+        num_ref,
+        lang,
+        rerank=False,
+        prepost_context=False,
+        background_reversed=False,
+        query_expansion=False,
+        LLM_URL=False,
+        LLM_NAME=False,
+    ):
         """
         Retrieves background information and contexts based on a given query. Filterstring under developement
 
@@ -323,70 +340,185 @@ class VectorStore:
         # filterstring = f"lang:{lang}"  # Add language to filter string
         # print(f"Filterstring: {filterstring}")
 
-        # Semantic Search
-        response_sem = self.mq.index(self.indexName).search(
-            q=query,  # Query string
-            limit=num_ref,  # Number of documents to retrieve
-            # attributes_to_retrieve=["text", "chunk"],
-            # filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
-        )
+        if query_expansion is False:
+            # Semantic Search
+            response_sem = self.mq.index(self.indexName).search(
+                q=query,  # Query string
+                limit=num_ref,  # Number of documents to retrieve
+                # attributes_to_retrieve=["text", "chunk"],
+                # filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
+            )["hits"]
 
-        # Lexial Search
-        response_lex = self.mq.index(self.indexName).search(
-            q=query,  # Query string
-            limit=num_ref,  # Number of documents to retrieve
-            # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve, explicit is faster
-            # filter_string=filterstring,  # Filter in db, e.g. for lang
-            search_method="LEXICAL",
-        )
+            # Lexial Search
+            response_lex = self.mq.index(self.indexName).search(
+                q=query,  # Query string
+                limit=num_ref,  # Number of documents to retrieve
+                # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve, explicit is faster
+                # filter_string=filterstring,  # Filter in db, e.g. for lang
+                search_method="LEXICAL",
+            )["hits"]
 
-        # Construct contexts and background
+        # If context expansion is needed
+        if query_expansion is not False:
+            print("Query expansion is needed.")
+            # Send data to the LLM for context expansion to retrieve more relevant contexts
+            # Query expansion demands LLM_URL and LLM_NAME, otherwise not possible
+            if (LLM_URL or LLM_NAME) is False:
+                raise Exception(
+                    "LLM_URL and LLM_NAME must be provided for query expansion."
+                )
+                return
+            # Request headers
+            headers = {
+                "Content-Type": "application/json",
+            }
+            # Request payload
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You an information system that helps process user questions. Provide information such that a vector database retrieval system can find the most relevant documents.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Expand the following query:\n\n{query}\n\n to {query_expansion} relevant queries which are close in meaning but use different wording."
+                    "Here are some examples:"
+                    '1. Query: "What is the capital of France?"'
+                    'Example expansion: ["Big cities in France", "Capitals in Europe", What is the capital of France?, "What is the capital of France?"]'
+                    '2. Query: "Drugs for cancer treatment?"'
+                    'Example expansions: ["Cure against cancer", "Medications for cancer", "Drugs for cancer treatment?"]'
+                    '3. "What positions are there in a football team?"'
+                    'Example expansions: [Football team roles, "Positions in soccer", "What positions are there in a football team?"]'
+                    "Use the same list structure in your answer as in the examples above. The last query in the list should be the original query."
+                    "Structure your response as a list of strings, where each string is a query. The answer should be just this list and nothing else.",
+                },
+            ]
+            data = {
+                "model": LLM_NAME,
+                "messages": messages,
+                "max_tokens": 100,
+                "temperature": 0.7,
+            }
+
+            # Send the request
+            endpoint = f"{LLM_URL}/chat/completions"
+            response = requests.post(endpoint, headers=headers, json=data)
+            # Safe guard
+            if not response.status_code == 200:
+                print(f"LLM failed with status code: {response.status_code}")
+                raise ("LLM failed")
+                return
+
+            # Parse the response
+            response_data = response.json()
+
+            # Extract the queries from the response
+            print("Response data:")
+            pprint(response_data)
+            if "choices" in response_data:
+                extended_queries = (
+                    response_data["choices"][0]["message"]["content"]
+                    .strip("[]")
+                    .replace('"', "")
+                    .split(", ")
+                )
+
+            # Print or use the list of queries
+            print(extended_queries)
+            print(f" Type of extended queries: {type(extended_queries)}")
+
+            # Merge search results for all queries in the extended_queries list
+            response_sem = []
+            response_lex = []
+            # Now we have the extended queries, we can search for them in the index
+            for query in extended_queries:
+                # Semantic Search
+                response_sem_temp = self.mq.index(self.indexName).search(
+                    q=query,  # Query string
+                    limit=num_ref,  # Number of documents to retrieve
+                    # attributes_to_retrieve=["text", "chunk"],
+                    # filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
+                )["hits"]
+
+                # Lexial Search
+                response_lex_temp = self.mq.index(self.indexName).search(
+                    q=query,  # Query string
+                    limit=num_ref,  # Number of documents to retrieve
+                    # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve, explicit is faster
+                    # filter_string=filterstring,  # Filter in db, e.g. for lang
+                    search_method="LEXICAL",
+                )["hits"]
+
+                # Append to the response lists
+                response_sem.extend(response_sem_temp)
+                response_lex.extend(response_lex_temp)
+
+        ##
+        ## Construct contexts and background
+        ##
+
         background = ""
         contexts = []
         context_ids = []
         full_results = []
         plain_text_results = []
 
+        # Get initial search results
+        # print(f" Semantic Search Results: {response_sem}")
+        # print(f" Lexical Search Results: {response_lex}")
+        # Fusing the lists alternately
+        full_results = [
+            item for pair in zip(response_lex, response_sem) for item in pair
+        ]
+
+        # Adding the remaining elements (if results are not the same length)
+        full_results.extend(
+            response_lex[len(response_sem) :] or response_sem[len(response_lex) :]
+        )
+        # Get plain text results for semantic reranker later on
+        plain_text_results = [item["text"] for item in full_results]
+
         # If rerank is false, combine semantic and lexical search results
         if rerank is False:
             # Combine semantic and lexical search results
-            for response in [response_sem, response_lex]:
-                # Construct Background
-                for i in range(len(response["hits"])):
-                    # Get current context
-                    text = response["hits"][i]["text"]
-                    # title = response["hits"][i]["title"]
-                    # link_url = response["hits"][i]["link_url"]
-                    score = response["hits"][i]["_score"]
-                    # Augment context with title, link and score
-                    context = f"Text: {text} "
-                    contexts.append(context)
-                    # Get current context id
-                    Id = response["hits"][i]["chunk_id"]
-                    context_ids.append(Id)
+            for hit in full_results:
+                # If needed, augment context with title, link and score
+                text = hit["text"]
+                # title = hit["title"]
+                # link_url = hit["link_url"]
+                score = hit["_score"]
+                ##
+                ## Context Expansion
+                ##
+                if prepost_context:
+                    pre_context = hit["pre_context"]
+                    post_context = hit["post_context"]
+                    context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
+                else:
+                    context = f" Context: {text} "
+                # Append to context list
+                contexts.append(context)
+                # Get current context id and append to context_ids
+                Id = hit["chunk_id"]
+                context_ids.append(Id)
 
-                    ## pprint.pprint(contexts)
-                    # If pre post context is true, add pre and post context to background
-                    if prepost_context:
-                        pre_context = response["hits"][i]["pre_context"]
-                        post_context = response["hits"][i]["post_context"]
-                        background += (
-                            pre_context + " " + context + " " + post_context + " "
-                        )
-                    else:  # Else just add context
-                        background += context + " "
+                ##
+                ## Context Expansion
+                ##
 
-        # If rerank is true, rerank the results
+                if prepost_context:
+                    pre_context = hit["pre_context"]
+                    post_context = hit["post_context"]
+                    context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
+                else:
+                    context = f" Context: {text} "
+
+                contexts.append(context)
+                # Get current context id and append to context_ids
+                Id = hit["chunk_id"]
+                context_ids.append(Id)
+
         if rerank is True:
-            print(f" Semantic Search Results: {response_sem}")
-            print(f" Lexical Search Results: {response_lex}")
-            for response in response_sem["hits"]:
-                full_results.append(response)
-                plain_text_results.append(response["text"])
-            for response in response_lex["hits"]:
-                full_results.append(response)
-                plain_text_results.append(response["text"])
-
+            # Rerank the results using the semantic reranker
             headers = {
                 "Content-Type": "application/json",
             }
@@ -409,28 +541,114 @@ class VectorStore:
             # Iterate over reranked results
             for reranked_res in reranked_results:
                 current_index = reranked_res["result_index"]
-                print(f"Current Index: {current_index}")
+                print(f"Reranked index: {current_index}")
                 # Get current highest ranked context
                 hit = full_results[current_index]
+                # If needed, augment context with title, link and score
                 text = hit["text"]
                 # title = hit["title"]
                 # link_url = hit["link_url"]
                 score = hit["_score"]
-                # Augment context with title, link and score
-                context = f" Text: {text} "
-                contexts.append(context)
-                # Get current context id
-                Id = hit["chunk"]
-                context_ids.append(Id)
 
-                ## pprint.pprint(contexts)
-                # If pre post context is true, add pre and post context to background
+                ##
+                ## Context Expansion
+                ##
+
                 if prepost_context:
                     pre_context = hit["pre_context"]
                     post_context = hit["post_context"]
-                    background += pre_context + " " + context + " " + post_context + " "
-                else:  # Else just add context
-                    background += context + " "
+                    context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
+                else:
+                    context = f" Context: {text} "
+
+                contexts.append(context)
+                # Get current context id and append to context_ids
+                Id = hit["chunk_id"]
+                context_ids.append(Id)
+
+        if rerank == "rrf":
+            # Rerank the results using RRF
+
+            tensor_results = [
+                {"rank": i + 1, "id": response["chunk_id"]}
+                for i, response in enumerate(response_sem)
+            ]
+            lex_results = [
+                {"rank": i + 1, "id": response["chunk_id"]}
+                for i, response in enumerate(response_lex)
+            ]
+            for i in range(len(tensor_results)):
+                pprint(tensor_results[i])
+                pprint(lex_results[i])
+
+            # Step 1: Init empty set
+            unique_ids = set()
+
+            # Step 2: Combine the keys to get unique keys
+            for dic in tensor_results + lex_results:
+                unique_ids.add(dic["id"])
+            # Step 3: Create a new dictionary with all values set to 0
+            rrf_scores = {key: 0 for key in unique_ids}
+
+            pprint(rrf_scores)
+            # Step 4: Iterate over the results and add the scores
+            for result in lex_results + tensor_results:
+                ID = result["id"]
+                rank = result["rank"]
+                rrf_scores[ID] += 1 / (rank + 60)
+
+            pprint(rrf_scores)
+
+            # Step 5: sort the search results by the rrf scores
+            sorted_rrf_scores = sorted(
+                rrf_scores.items(), key=lambda x: x[1], reverse=True
+            )
+            pprint(sorted_rrf_scores)
+            # Get sorted ids
+            sorted_ids = [id_ for id_, score in sorted_rrf_scores]
+            pprint(sorted_ids)
+
+            # Step 1: Create a mapping from ID to full_results
+            id_to_dict = {d["chunk_id"]: d for d in full_results}
+
+            # Step 2: Sort the list of dictionaries according to sorted_ids
+            sorted_hits = [id_to_dict[id_] for id_ in sorted_ids]
+
+            # Now, sorted_hits contains dictionaries ordered according to sorted_ids
+            pprint(sorted_hits)
+
+            # Build the background
+            # Get current context
+            for hit in sorted_hits:
+                text = hit["text"]
+                # If needed, Augment context with title, link and score
+                # title = hit["title"]
+                # link_url = hit["link_url"]
+                score = hit["_score"]
+                ##
+                ## Context Expansion
+                ##
+                if prepost_context:
+                    pre_context = hit["pre_context"]
+                    post_context = hit["post_context"]
+                    context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
+                else:
+                    context = f" Context: {text} "
+                # Append to context list
+                contexts.append(context)
+                # Get current context id and append to context_ids
+                Id = hit["chunk_id"]
+                context_ids.append(Id)
+
+        # Add context to background
+        # Use only the top 5 contexts for background
+        # If descending order is needed, set reverse to False
+        if background_reversed is False:
+            background = " ".join(contexts[:5])
+
+        # If ascending order is needed, set reverse to True
+        if background_reversed is True:
+            background = " ".join(reversed(contexts[:5]))
 
         return background, contexts, context_ids
 

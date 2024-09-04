@@ -39,8 +39,16 @@ class DatasetHelpers:
 
         QA = load_dataset("rag-datasets/mini_wikipedia", "question-answer")["test"]
 
-        queries = QA["question"]
-        ground_truths = QA["answer"]
+        # Clean queries and ground truths and store them in lists
+        queries = []
+        ground_truths = []
+        for query, ground_truth in zip(QA["question"], QA["answer"]):
+            query = query.replace("\n", " ")
+            query = query.replace("\t", " ")
+            queries.append(query)
+            ground_truth = ground_truth.replace("\n", " ")
+            ground_truth = ground_truth.replace("\t", " ")
+            ground_truths.append(ground_truth)
 
         return corpus_list, queries, ground_truths
 
@@ -53,12 +61,22 @@ class DatasetHelpers:
         for passage, iD in zip(corpus["passage"], corpus["id"]):
             corpus_list.append({"text": passage, "id": iD})
 
+        # Load QA dataset
         QA = load_dataset("enelpol/rag-mini-bioasq", "question-answer-passages")[
             "train"
         ]
 
-        queries = QA["question"]
-        ground_truths = QA["answer"]
+        # Clean queries and ground truths and store them in lists
+        queries = []
+        ground_truths = []
+        for query, ground_truth in zip(QA["question"], QA["answer"]):
+            query = query.replace("\n", " ")
+            query = query.replace("\t", " ")
+            queries.append(query)
+            ground_truth = ground_truth.replace("\n", " ")
+            ground_truth = ground_truth.replace("\t", " ")
+            ground_truths.append(ground_truth)
+
         goldPassages = QA["relevant_passage_ids"]
 
         return corpus_list, queries, ground_truths, goldPassages
