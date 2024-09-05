@@ -57,6 +57,60 @@ class RagPipe:
         # Default to english
         self.PROMPT = self.PROMPT_EN
 
+    def setConfigs(
+        self,
+        query_expansion,
+        rerank,
+        prepost_context,
+        background_reversed,
+        lang,
+        search_ref_lex,
+        search_ref_sem,
+        num_ref_lim,
+    ):
+        """
+        Sets the configurations for the pipeline.
+
+        Args:
+            query_expansion (int): The number of query expansions.
+            rerank (bool): Whether to rerank the documents based on the query.
+            prepost_context (bool): Whether to include pre/post context in the answer.
+            background_reversed (bool): Whether to reverse the background.
+            lang (str): The language of the query.
+            search_ref_lex (int): The number of lexical references to search for.
+            search_ref_sem_ (int): The number of semantic references to search for.
+            num_ref_lim (int): The number of references to limit.
+
+        Returns:
+            None
+        """
+        self.query_expansion = query_expansion
+        self.rerank = rerank
+        self.prepost_context = prepost_context
+        self.background_reversed = background_reversed
+        self.lang = lang
+        self.search_ref_lex = search_ref_lex
+        self.search_ref_sem_ = search_ref_sem
+        self.num_ref_lim = num_ref_lim
+
+    def getConfigs(self):
+        """
+        Returns the configurations for the pipeline.
+
+        Returns:
+            dict: A dictionary containing the configurations for the pipeline.
+        """
+        return {
+            "query_expansion": self.query_expansion,
+            "rerank": self.rerank,
+            "prepost_context": self.prepost_context,
+            "background_reversed": self.background_reversed,
+            "lang": self.lang,
+            "search_ref_lex": self.search_ref_lex,
+            "search_ref_sem_": self.search_ref_sem_,
+            "num_ref_lim": self.num_ref_lim,
+        }
+
     def connectVectorStore(self, vectorStore):
         """
         Connects the vector store to the current instance.

@@ -314,7 +314,7 @@ class VectorStore:
         query,
         num_ref,
         lang,
-        rerank=False,
+        rerank=False,  # [False, True, "rrf"]
         prepost_context=False,
         background_reversed=False,
         query_expansion=False,
