@@ -233,48 +233,6 @@ class RagPipe:
 
         return result
 
-    def evalSendToLLM(
-        self,
-        messages,
-    ):
-        """
-        Sends a query to the OpenAI endpoint for language model evaluation.
-
-        Args:
-            messages (list): A list of messages to send to the language model.
-            model_temp (float, optional): The temperature value for model sampling. Defaults to 0.0.
-            answer_size (int, optional): The maximum number of tokens in the generated response. Defaults to 1.
-            presence_pen (float, optional): The presence penalty value. Defaults to 0.0.
-            repeat_pen (float, optional): The repeat penalty value. Defaults to 0.0.
-
-        Returns:
-            str: The generated response from the language model. Which is either 0 or 1.
-        """
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer N/A ",
-        }
-        data = {
-            "model": self.LLM_NAME,
-            "messages": messages,
-            "temperature": 0.0,
-            "max_tokens": 1,
-            "presence_penalty": 0.0,
-            "repeat_penalty": 0.0,
-        }
-        endpoint = self.LLM_URL + "/chat/completions"
-        print("Sending query to OpenAI endpoint: " + endpoint)
-        report = requests.post(endpoint, headers=headers, json=data).json()
-        print("Received response...")
-        if "choices" in report:
-            if len(report["choices"]) > 0:  # Always take the first choice.
-                result = report["choices"][0]["message"]["content"]
-            else:
-                result = "No result generated!"
-        else:
-            result = report
-        return result
-
     def answerQuery(
         self,
         query,
