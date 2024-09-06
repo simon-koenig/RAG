@@ -5,11 +5,11 @@ from pprint import pprint
 import numpy as np
 import requests
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
 # Reranker Endpoint
 RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
 query_threshold = 0.5
-num_ref = 4
 
 
 class RagPipe:
@@ -57,16 +57,30 @@ class RagPipe:
         # Default to english
         self.PROMPT = self.PROMPT_EN
 
+        # Default configurations
+        self.query_expansion = False
+        self.rerank = False
+        self.prepost_context = False
+        self.background_reversed = False
+        self.lang = "EN"
+        self.search_ref_lex = 2
+        self.search_ref_sem = 2
+        self.num_ref_lim = 2
+        self.model_temp = 0.1
+        self.answer_token_num = 50
+
     def setConfigs(
         self,
-        query_expansion,
-        rerank,
-        prepost_context,
-        background_reversed,
-        lang,
-        search_ref_lex,
-        search_ref_sem,
-        num_ref_lim,
+        query_expansion=False,
+        rerank=True,
+        prepost_context=False,
+        background_reversed=False,
+        lang="EN",
+        search_ref_lex=2,
+        search_ref_sem=2,
+        num_ref_lim=4,
+        model_temp=0.1,
+        answer_token_num=50,
     ):
         """
         Sets the configurations for the pipeline.
@@ -90,8 +104,10 @@ class RagPipe:
         self.background_reversed = background_reversed
         self.lang = lang
         self.search_ref_lex = search_ref_lex
-        self.search_ref_sem_ = search_ref_sem
+        self.search_ref_sem = search_ref_sem
         self.num_ref_lim = num_ref_lim
+        self.model_temp = model_temp
+        self.answer_token_num = answer_token_num
 
     def getConfigs(self):
         """
@@ -107,8 +123,10 @@ class RagPipe:
             "background_reversed": self.background_reversed,
             "lang": self.lang,
             "search_ref_lex": self.search_ref_lex,
-            "search_ref_sem_": self.search_ref_sem_,
+            "search_ref_sem": self.search_ref_sem,
             "num_ref_lim": self.num_ref_lim,
+            "model_temp": self.model_temp,
+            "answer_token_num": self.answer_token_num,
         }
 
     def connectVectorStore(self, vectorStore):
@@ -181,8 +199,8 @@ class RagPipe:
         data = {
             "model": self.LLM_NAME,
             "messages": messages,
-            "temperature": model_temp,
-            "max_tokens": answer_size,
+            "temperature": self.model_temp,
+            "max_tokens": self.answer_token_num,
             # "presence_penalty": presence_pen,
             # "repeat_penalty": repeat_pen,
         }
@@ -218,10 +236,6 @@ class RagPipe:
     def evalSendToLLM(
         self,
         messages,
-        model_temp=0.0,
-        answer_size=1,
-        presence_pen=0.0,
-        repeat_pen=0.0,
     ):
         """
         Sends a query to the OpenAI endpoint for language model evaluation.
@@ -243,10 +257,10 @@ class RagPipe:
         data = {
             "model": self.LLM_NAME,
             "messages": messages,
-            "temperature": model_temp,
-            "max_tokens": answer_size,
-            "presence_penalty": presence_pen,
-            "repeat_penalty": repeat_pen,
+            "temperature": 0.0,
+            "max_tokens": 1,
+            "presence_penalty": 0.0,
+            "repeat_penalty": 0.0,
         }
         endpoint = self.LLM_URL + "/chat/completions"
         print("Sending query to OpenAI endpoint: " + endpoint)
@@ -264,11 +278,6 @@ class RagPipe:
     def answerQuery(
         self,
         query,
-        query_expansion=False,
-        rerank=False,
-        prepost_context=False,
-        background_reversed=False,
-        lang="EN",
     ):
         """
         Answers a user query based on the given parameters.
@@ -285,23 +294,25 @@ class RagPipe:
         # Retrieve top k documents from indexName based on query
 
         # Update filter string with language for index search
-        print(f"Waiting for background!")
+        print("Waiting for background!")
         background, contexts, contexts_ids = self.DB.getBackground(
             query,
-            num_ref=num_ref,
-            lang=lang,
-            rerank=rerank,
-            prepost_context=prepost_context,
-            background_reversed=background_reversed,
-            query_expansion=query_expansion,
+            search_ref_lex=self.search_ref_lex,
+            search_ref_sem=self.search_ref_sem,
+            num_ref_lim=self.num_ref_lim,
+            lang=self.lang,
+            rerank=self.rerank,
+            prepost_context=self.prepost_context,
+            background_reversed=self.background_reversed,
+            query_expansion=self.query_expansion,
             LLM_URL=self.LLM_URL,
             LLM_NAME=self.LLM_NAME,
         )
-        print(f"Background received!")
+        print("Background received!")
         # Update language prompt for LLM
-        if lang == "DE":
+        if self.lang == "DE":
             self.PROMPT = self.PROMPT_DE
-        if lang == "EN":
+        if self.lang == "EN":
             self.PROMPT = self.PROMPT_EN
 
         # Tell llm again to obey instructions
@@ -324,223 +335,6 @@ class RagPipe:
         # pprint(background)
         return result, contexts, contexts_ids
 
-    def evaluate_context_relevance(
-        self,
-        queries,
-        contexts=None,
-        contexts_ids=None,
-        goldPassages=None,
-        evaluator="sem_similarity",
-    ):
-        # Type checking
-        if not isinstance(queries, list):
-            raise TypeError(
-                f"Queries must be of type list, but got {type(queries).__name__}."
-            )
-
-        # check if gold passages available
-        if goldPassages is None:
-            scores = {}
-            # If no contexts are provided, retrieve top 3 documents from index based on query
-            # for each document.
-
-            if (
-                contexts is None
-            ):  # Extend context to list of nones to match queries length
-                contexts = [None] * len(queries)
-
-            # Loop over all queries with their respective contexts
-            for query, context in zip(queries, contexts):
-                if context is None:
-                    # Retrieve top 3 documents from index based on query
-                    context, ids = self.DB.retrieveDocuments(query, 3)
-
-                measurements = []
-                # Loop over all contexts for a query
-                for single_context in context:
-                    print(f"Context: {single_context}")
-
-                    # Evaluate context relevance based on chosen evaluator
-                    if evaluator == "sem_similarity":
-                        measure = self.semantic_similarity(single_context, query)
-                    elif evaluator == "llm_judge":
-                        measure = self.llm_binary_context_relevance(
-                            single_context, query
-                        )
-                    # Convert measure to float and append to list
-                    measurements.append(round(float(measure), 3))
-                # Compute mean context relevance over all contexts per query
-                scores[query] = np.array(measurements)
-
-            return scores
-
-        if goldPassages is not None:
-            pass  # Implement evaluation with goldPassages
-            print("Evaluation with goldPassages not implemented yet")
-
-    def llm_binary_context_relevance(self, context, query):
-        messages = [
-            {
-                "role": "system",
-                "content": "Given the following context and query,"
-                " Give a binary rating, either 0 or 1."
-                " Respond with 0 if an answer to the query cannot be derived from the given context. "
-                "Respond with 1 if an answer to the query can be derived from the given context.  "
-                'Strictly respond with  either  "0" or "1"'
-                'The output must strictly and only be a single integer "0" or "1" and no additional text.',
-            },
-            {"role": "user", "content": f"Context: {context} ; Query: {query}"},
-        ]
-
-        result = self.evalSendToLLM(messages)
-        return result
-
-    def evaluate_faithfulness(
-        self, answers, contexts, evaluator="sem_similarity", contexts_ids=None
-    ):
-        # Type checking
-        if not isinstance(answers, list):
-            raise TypeError(
-                f"Answers must be of type list, but got {type(answers).__name__}."
-            )
-        scores = {}
-        for answer, context in zip(answers, contexts):
-            measurements = []
-            for single_context in context:
-                # Insert here evaluation measure of retrieved context
-                print(f"Context: {single_context}")  #
-                if evaluator == "sem_similarity":
-                    measure = self.semantic_similarity(single_context, answer)
-                elif evaluator == "llm_judge":
-                    measure = self.llm_binary_faithfulness(single_context, answer)
-
-                measurements.append(round(float(measure), 3))
-            # Compute mean faithfulness over all contexts per answer
-            scores[answer] = np.array(measurements)  # Insert evaluation measure here
-
-        return scores
-
-    def llm_binary_faithfulness(self, context, answer):
-        messages = [
-            {
-                "role": "system",
-                "content": "Given the following context and answer,"
-                " Give a binary rating, either 0 or 1."
-                " Respond wiht 0 if the answer is not sufficiently grounded in the context. "
-                " Respond wiht 1 if the answer is sufficiently grounded in the context. "
-                ' Strictly respond with  either  "0" or "1"'
-                'The output must strictly and only be a single integer "0" or "1" and no additional text.',
-            },
-            {"role": "user", "content": f"Context: {context} ; Answer: {answer}"},
-        ]
-
-        result = self.evalSendToLLM(messages)
-        return result
-
-    def evaluate_answer_relevance(self, queries, answers, evaluator="sem_similarity"):
-        # Type checking
-        if not isinstance(answers, list):
-            raise TypeError(
-                f"Answers must be of type list, but got {type(answers).__name__}."
-            )
-
-        if not isinstance(queries, list):
-            raise TypeError(
-                f"Queries must be of type list, but got {type(queries).__name__}."
-            )
-
-        scores = {}
-        for answer, query in zip(answers, queries):
-            print(f"Answer: {answer}")
-            print(f"Query: {query}")
-            # Evaluate context relevance based on chosen evaluator
-            if evaluator == "sem_similarity":
-                measure = self.semantic_similarity(answer, query)
-            elif evaluator == "llm_judge":
-                measure = self.llm_binary_answer_relevance(answer, query)
-            # Convert measure to float and append to list
-            scores[query] = round(float(measure), 3)
-        return scores
-
-    def llm_binary_answer_relevance(self, answer, query):
-        messages = [
-            {
-                "role": "system",
-                "content": "Given the following query and answer,"
-                "Analyse the question and answer without consulting prior knowledge."
-                " Determine if the answer is relevant to the question."
-                " Give a binary rating, either 0 or 1."
-                " Consider whether the answer addresses all parts of question asked."
-                " Respond with 0 if the answer does not address the question"
-                " Respond with 1 if the answer addresses to the question"
-                ' Strictly respond with  either  "0" or "1"'
-                'The output must strictly and only be a single integer "0" or "1" and no additional text.',
-            },
-            {"role": "user", "content": f"Query: {query} ; Answer: {answer}"},
-        ]
-        result = self.evalSendToLLM(messages)
-        return result
-
-    def evaluate_correctness(self, answers, ground_truths, evaluator="sem_similarity"):
-        # Type checking
-        if not isinstance(answers, list):
-            raise TypeError(
-                f"Answers must be of type list, but got {type(answers).__name__}."
-            )
-
-        if not isinstance(ground_truths, list):
-            raise TypeError(
-                f"Queries must be of type list, but got {type(ground_truths).__name__}."
-            )
-
-        scores = {}
-        for answer, ground_truth in zip(answers, ground_truths):
-            print(f"Answer: {answer}")
-            print(f"Ground truth: {ground_truth}")
-            if evaluator == "sem_similarity":
-                measure = self.semantic_similarity(answer, ground_truth)
-            elif evaluator == "llm_judge":
-                measure = self.llm_binary_correctness(answer, ground_truth)
-
-            scores[answer] = round(float(measure), 3)
-        return scores
-
-    def llm_binary_correctness(self, answer, ground_truth):
-        messages = [
-            {
-                "role": "system",
-                "content": "Given the following answer and ground truth,"
-                "Analyse the question and answer without consulting prior knowledge."
-                " Determine if the answer is correct based on the ground truth."
-                " Give a binary rating, either 0 or 1."
-                " Consider whether the ground truth matches the answer in meaning."
-                " Respond with 0 if the answer is incorrect based on the ground truth."
-                " Respond with 1 if the answer is correct based on the ground truth."
-                ' Strictly respond with  either  "0" or "1"'
-                'The output must strictly and only be a single integer "0" or "1" and no additional text.',
-            },
-            {
-                "role": "user",
-                "content": f"Answer: {answer} ; GroundTruth: {ground_truth}",
-            },
-        ]
-        result = self.evalSendToLLM(messages)
-        return result
-
-    def semantic_similarity(self, sentence1, sentence2):
-        model = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1")  # cheap model for dev
-        # all-mpnet-base-v2 , more performant model, but slower
-        sentence1_vec = model.encode([sentence1])
-
-        sentence2_vec = model.encode([sentence2])
-
-        similarity_score = model.similarity(
-            sentence1_vec, sentence2_vec
-        )  # Default is cosine simi
-        print(f"\n Similarity Score = {similarity_score} ")
-
-        return similarity_score
-
     def run(
         self,
         questions,
@@ -548,24 +342,21 @@ class RagPipe:
         goldPassagesIds=None,
         corpus_list=None,
         newIngest=False,
-        query_expansion=False,
-        rerank=False,
-        prepost_context=False,
-        background_reversed=False,
-        lang="EN",
         maxDocs=1000000,
-        maxQueries=1000000,
     ):
         # Run RAG pipeline for questions, ground_truhts and corpus_list
         if newIngest:
             self.DB.emptyIndex()
             print("Index emptied")
             print("Start indexing documents. Please wait. ")
-            self.DB.indexDocuments(documents=corpus_list, maxDocs=maxDocs)
-            print(f" You are using index: {self.DB.indexName}")
-            print(f"Done! Index Stats:  {self.DB.getIndexStats()}")
-
-        elif not newIngest or not corpus_list:
+            # Ask user if they are certain they want to ingest new documents
+            if input("Are you sure you want to ingest new documents? (y/n): ") == "y":
+                self.DB.indexDocuments(documents=corpus_list, maxDocs=maxDocs)
+                print(f" You are using index: {self.DB.indexName}")
+                print(f"Done! Index Stats:  {self.DB.getIndexStats()}")
+            else:
+                print("No new documents ingested.")
+        elif not (newIngest and corpus_list):
             print("Using already indexed documents.")
             print(f" You are using index: {self.DB.indexName}")
             print(f"Index Stats:  {self.DB.getIndexStats()}")
@@ -585,10 +376,16 @@ class RagPipe:
             print("No goldPassages given!")
             goldPassagesIds = [None] * len(questions)
 
+        # Check if questions, ground_truths and goldPassages have the same length
+        if not len(questions) == len(ground_truths) == len(goldPassagesIds):
+            raise ValueError(
+                "Questions, ground_truths and goldPassages must have the same length."
+            )
+
         for question, ground_truth, goldPassages in zip(
-            questions[:maxQueries],
-            ground_truths[:maxQueries],
-            goldPassagesIds[:maxQueries],
+            questions,
+            ground_truths,
+            goldPassagesIds,
         ):
             self.rag_elements.append(
                 {
@@ -603,15 +400,10 @@ class RagPipe:
 
         # Iterate over the rag elements and get the answer from the LLM model and the contexts from the Vector DB
         size = len(self.rag_elements)
-        for rag_element in self.rag_elements:
+        for rag_element in tqdm(self.rag_elements):
             print(f"Current Question: {rag_element['question']}")
             llmanswer, contexts, contexts_ids = self.answerQuery(
                 rag_element["question"],
-                query_expansion,
-                rerank,
-                prepost_context,
-                background_reversed,
-                lang,
             )
             print("Received Answer from llm")
             # Clean answer from llm
@@ -624,110 +416,5 @@ class RagPipe:
             rag_element["contexts"] = contexts
             rag_element["contexts_ids"] = contexts_ids
 
-            # Update on progressq
+            # Update on progress
             print(f"Progress: {self.rag_elements.index(rag_element) + 1}/{size}")
-
-    def eval(self, method=None, only_queries=None, evaluator="sem_similarity"):
-        # Select evalaution method to run
-        if method is None or method not in [
-            "context_relevance",
-            "faithfulness",
-            "answer_relevance",
-            "correctness",
-            "all",
-        ]:
-            print("No evaluation method selected")
-            return
-        # Print choices
-        print(f"Running evaluation for method: {method}")
-        print(f"Using evaluator: {evaluator}")
-
-        if method == "context_relevance":
-            if only_queries is not None:
-                # Bypass rag pipeline run and just evaluate context relevance
-                # betweeen queries and contexts
-                scores = self.evaluate_context_relevance(only_queries, contexts=None)
-            else:
-                contexts = [element["contexts"] for element in self.rag_elements]
-                queries = [element["question"] for element in self.rag_elements]
-                contexts_ids = [
-                    element["contexts_ids"] for element in self.rag_elements
-                ]
-                scores = self.evaluate_context_relevance(
-                    queries, contexts, contexts_ids=contexts_ids, evaluator=evaluator
-                )
-            return scores
-
-        if method == "faithfulness":
-            answers = [element["answer"] for element in self.rag_elements]
-            contexts = [element["contexts"] for element in self.rag_elements]
-            contexts_ids = [element["contexts_ids"] for element in self.rag_elements]
-            scores = self.evaluate_faithfulness(
-                answers,
-                contexts,
-                contexts_ids=contexts_ids,
-                evaluator=evaluator,
-            )
-            return scores
-
-        if method == "answer_relevance":
-            queries = [element["question"] for element in self.rag_elements]
-            answers = [element["answer"] for element in self.rag_elements]
-            scores = self.evaluate_answer_relevance(queries, answers, evaluator)
-            return scores
-
-        if method == "correctness":
-            answers = [element["answer"] for element in self.rag_elements]
-            ground_truths = [element["ground_truth"] for element in self.rag_elements]
-            scores = self.evaluate_correctness(answers, ground_truths, evaluator)
-            return scores
-
-        if method == "all":
-            queries = [element["question"] for element in self.rag_elements]
-            contexts = [element["contexts"] for element in self.rag_elements]
-            contexts_ids = [element["context_ids"] for element in self.rag_elements]
-
-            answers = [element["answer"] for element in self.rag_elements]
-            ground_truths = [element["ground_truth"] for element in self.rag_elements]
-
-            cr_scores = self.evaluate_context_relevance(
-                queries, contexts, evaluator=evaluator, contexts_ids=contexts_ids
-            )
-
-            f_scores = self.evaluate_faithfulness(
-                answers, contexts, evaluator=evaluator, contexts_ids=contexts_ids
-            )
-            ar_scores = self.evaluate_answer_relevance(queries, answers, evaluator)
-            c_scores = self.evaluate_correctness(answers, ground_truths, evaluator)
-
-            return {
-                "context_relevance": cr_scores,
-                "faithfulness": f_scores,
-                "answer_relevance": ar_scores,
-                "correctness": c_scores,
-            }
-
-    def eval_context_goldPassages(self, goldPassages):
-        # Evaluate context relevance with goldPassages
-        contexts = [element["contexts"] for element in self.rag_elements]
-        queries = [element["question"] for element in self.rag_elements]
-        contexts_ids = [element["contexts_ids"] for element in self.rag_elements]
-
-        matches = []
-        for query, context_ids, goldPs in zip(queries, contexts_ids, goldPassages):
-            print(f"Context_ids: {context_ids}")
-            print(f"goldPasssageContexts: {goldPs}")
-
-            # Count number of matches in context_ids and goldPs
-            # Beware, that the number of elements in goldPs per query varies.
-            set_goldPs = set(goldPs)
-            set_context_ids = set(context_ids)
-            number_matches = sum(
-                1 for element in set_context_ids if element in set_goldPs
-            )
-            print(f"Query: {query}")
-            print(f"Number of matches: {number_matches}")
-            print(f"Number of goldPs: {len(goldPs)}")
-            matches.append([number_matches, len(goldPs)])
-
-        return matches

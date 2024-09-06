@@ -5,11 +5,9 @@ from pprint import pprint
 
 sys.path.append("./dev/")
 sys.path.append("./src/")
-import csv
 
-from csv_helpers import read_pipe_results_from_csv, write_pipe_results_to_csv
+from csv_helpers import write_pipe_results_to_csv
 from dataset_helpers import DatasetHelpers
-from evaluate import eval
 from pipe import RagPipe
 from vector_store import VectorStore
 
@@ -39,14 +37,7 @@ pipe.connectLLM(LLM_URL, LLM_NAME)
 
 # Add configuarionts to pipeline
 pipe.setConfigs(
-    query_expansion=3,
-    rerank=True,
-    prepost_context=False,
     background_reversed=True,
-    lang="EN",
-    search_ref_lex=2,
-    search_ref_sem=2,
-    num_ref_lim=2,
 )
 
 
@@ -54,25 +45,17 @@ configs = pipe.getConfigs()
 print(configs)
 
 # Run pipeline
-# pipe.run(
-#     questions=queries[:1],
-#     ground_truths=ground_truths,
-#     goldPassagesIds=goldPassages,
-#     corpus_list=corpus_list,
-#     newIngest=False,
-#     maxDocs=100000,
-#     maxQueries=1000000,
-#     lang="EN",
-#     query_expansion=3,
-#     rerank=True,
-#     prepost_context=False,
-#     background_reversed=True,
-# )
+pipe.run(
+    questions=queries[:10],
+    ground_truths=ground_truths[:10],
+    goldPassagesIds=goldPassages[:10],
+)
 
 # # Print results
 # for elem in pipe.rag_elements:
-#     pprint(elem)
+#    pprint(elem)
 
 
-# write_pipe_results_to_csv(pipe.rag_elements, "./rag_results/query_expansion_test.csv")
-# print("Results written to csv file.")
+write_pipe_results_to_csv(pipe.rag_elements, "./rag_results/test.csv")
+print("Results written to csv file.")
+# Test of rag evaluation

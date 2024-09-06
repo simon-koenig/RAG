@@ -4,6 +4,7 @@ from pprint import pprint
 
 import marqo
 import requests
+from tqdm import tqdm
 from utils import chunkText
 
 # Reranker Endpoint
@@ -197,7 +198,7 @@ class VectorStore:
         ]
         # Iteratore over bunches of documents and index them simultaneously
 
-        for i, bunch in enumerate(bunches):
+        for i, bunch in tqdm(enumerate(bunches)):
             try:
                 # Index the bunch of documents
                 self.mq.index(self.indexName).add_documents(
@@ -311,9 +312,11 @@ class VectorStore:
 
     def getBackground(
         self,
-        query,
-        num_ref,
-        lang,
+        query="Dull default query",
+        search_ref_lex=2,
+        search_ref_sem=2,
+        num_ref_lim=4,
+        lang="EN",
         rerank=False,  # [False, True, "rrf"]
         prepost_context=False,
         background_reversed=False,
@@ -344,7 +347,7 @@ class VectorStore:
             # Semantic Search
             response_sem = self.mq.index(self.indexName).search(
                 q=query,  # Query string
-                limit=num_ref,  # Number of documents to retrieve
+                limit=search_ref_sem,  # Number of documents to retrieve
                 # attributes_to_retrieve=["text", "chunk"],
                 # filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
             )["hits"]
@@ -352,7 +355,7 @@ class VectorStore:
             # Lexial Search
             response_lex = self.mq.index(self.indexName).search(
                 q=query,  # Query string
-                limit=num_ref,  # Number of documents to retrieve
+                limit=search_ref_lex,  # Number of documents to retrieve
                 # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve, explicit is faster
                 # filter_string=filterstring,  # Filter in db, e.g. for lang
                 search_method="LEXICAL",
@@ -412,8 +415,8 @@ class VectorStore:
             response_data = response.json()
 
             # Extract the queries from the response
-            print("Response data:")
-            pprint(response_data)
+            # print("Response data:")
+            # pprint(response_data)
             if "choices" in response_data:
                 extended_queries = (
                     response_data["choices"][0]["message"]["content"]
@@ -434,7 +437,7 @@ class VectorStore:
                 # Semantic Search
                 response_sem_temp = self.mq.index(self.indexName).search(
                     q=query,  # Query string
-                    limit=num_ref,  # Number of documents to retrieve
+                    limit=search_ref_sem,  # Number of documents to retrieve
                     # attributes_to_retrieve=["text", "chunk"],
                     # filter_string=filterstring,  # Filter in db, e.g. for lang  # Attributes to retrieve, explicit is faster
                 )["hits"]
@@ -442,7 +445,7 @@ class VectorStore:
                 # Lexial Search
                 response_lex_temp = self.mq.index(self.indexName).search(
                     q=query,  # Query string
-                    limit=num_ref,  # Number of documents to retrieve
+                    limit=search_ref_lex,  # Number of documents to retrieve
                     # attributes_to_retrieve=["text", "chunk"],  # Attributes to retrieve, explicit is faster
                     # filter_string=filterstring,  # Filter in db, e.g. for lang
                     search_method="LEXICAL",
@@ -525,7 +528,7 @@ class VectorStore:
             data = {
                 "query": query,
                 "raw_results": plain_text_results,
-                "num_results": num_ref * 2,  # To get all results
+                "num_results": search_ref_lex + search_ref_sem,  # Rank all results
             }
 
             # Get response from reranker
@@ -641,14 +644,14 @@ class VectorStore:
                 context_ids.append(Id)
 
         # Add context to background
-        # Use only the top 5 contexts for background
+        # Use only the top num_ref_lim contexts for background
         # If descending order is needed, set reverse to False
         if background_reversed is False:
-            background = " ".join(contexts[:5])
+            background = " ".join(contexts[:num_ref_lim])
 
         # If ascending order is needed, set reverse to True
         if background_reversed is True:
-            background = " ".join(reversed(contexts[:5]))
+            background = " ".join(reversed(contexts[:num_ref_lim]))
 
         return background, contexts, context_ids
 
