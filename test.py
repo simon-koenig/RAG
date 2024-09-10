@@ -35,5 +35,5 @@ curl -XGET http://10.103.251.104:8880/indexes/minibios-qa-gpu/stats
 
 """
 curl
-http://10.103.251.104:8040/v1/chat/completions -H "Content-Type: application/json" -d '{ "model": "llama3", "messages": [ {"role": "user", "content": "Who is him."}]}'
+http://10.103.251.104:8040/v1/chat/completions -H "Content-Type: application/json" -d '{ "model": "llama3.1", "messages": [ {"role": "user", "content": "Who is him."}]}'
 """

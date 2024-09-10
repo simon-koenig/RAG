@@ -408,7 +408,7 @@ class VectorStore:
             # Safe guard
             if not response.status_code == 200:
                 print(f"LLM failed with status code: {response.status_code}")
-                raise ("LLM failed")
+                raise Exception("LLM failed")
                 return
 
             # Parse the response

@@ -43,32 +43,35 @@ pipe.connectLLM(LLM_URL, LLM_NAME)
 ## Set parameters for the pipeline
 ##
 
+query_expansion = [0, 1, 2, 3, 4, 5]
 
-pipe.setConfigs(
-    lang="EN",
-    query_expansion=3,
-    rerank=False,
-    prepost_context=False,
-    background_reversed=False,
-    search_ref_lex=2,
-    search_ref_sem=2,
-    num_ref_lim=4,
-    model_temp=0.1,
-    answer_token_num=50,
-)
+for query_expansion_val in query_expansion:
+    pipe.setConfigs(
+        lang="EN",
+        query_expansion=query_expansion_val,
+        rerank=True,
+        prepost_context=False,
+        background_reversed=False,
+        search_ref_lex=2,
+        search_ref_sem=2,
+        num_ref_lim=4,
+        model_temp=0.1,
+        answer_token_num=100,
+    )
 
+    # Run pipeline
+    pipe.run(
+        questions=queries[:1],
+        ground_truths=ground_truths[:1],
+        goldPassagesIds=goldPassages[:1],
+    )
 
-# Run pipeline
-pipe.run(
-    questions=queries[:1],
-    ground_truths=ground_truths[:1],
-    goldPassagesIds=goldPassages[:1],
-)
+    # Print results
+    # for elem in pipe.rag_elements:
+    #    pprint(elem)
 
-# Print results
-# for elem in pipe.rag_elements:
-#    pprint(elem)
-
-
-write_pipe_results_to_csv(pipe.rag_elements, "./rag_results/query_expansion_test.csv")
-print("Results written to csv file.")
+    # Write results to csv file
+    # Build the csv file path for the current parameter setting
+    csv_file_path = f"./pipe_results/query_expansion{query_expansion_val}.csv"
+    write_pipe_results_to_csv(pipe.rag_elements, csv_file_path)
+    print("Results written to csv file.")

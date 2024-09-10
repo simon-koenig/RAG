@@ -360,6 +360,7 @@ class RagPipe:
         size = len(self.rag_elements)
         for rag_element in tqdm(self.rag_elements):
             print(f"Current Question: {rag_element['question']}")
+            # Get answer
             llmanswer, contexts, contexts_ids = self.answerQuery(
                 rag_element["question"],
             )

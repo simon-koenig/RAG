@@ -2,6 +2,7 @@
 import numpy as np
 import requests
 from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
 # Constants
 LLM_URL = "http://10.103.251.104:8040/v1"
@@ -34,7 +35,7 @@ def evaluate_context_relevance(
         contexts = [None] * len(queries)
 
     # Loop over all queries with their respective contexts
-    for query, context in zip(queries, contexts):
+    for query, context in tqdm(zip(queries, contexts)):
         if context is None:
             # Retrieve top 3 documents from index based on query
             context, ids = vectorDB.retrieveDocuments(query, 3)
@@ -84,7 +85,7 @@ def evaluate_faithfulness(
             f"Answers must be of type list, but got {type(answers).__name__}."
         )
     scores = {}
-    for answer, context in zip(answers, contexts):
+    for answer, context in tqdm(zip(answers, contexts)):
         measurements = []
         for single_context in context:
             # Insert here evaluation measure of retrieved context
@@ -132,7 +133,7 @@ def evaluate_answer_relevance(queries, answers, evaluator="sem_similarity"):
         )
 
     scores = {}
-    for answer, query in zip(answers, queries):
+    for answer, query in tqdm(zip(answers, queries)):
         print(f"Answer: {answer}")
         print(f"Query: {query}")
         # Evaluate context relevance based on chosen evaluator
@@ -178,7 +179,7 @@ def evaluate_correctness(answers, ground_truths, evaluator="sem_similarity"):
         )
 
     scores = {}
-    for answer, ground_truth in zip(answers, ground_truths):
+    for answer, ground_truth in tqdm(zip(answers, ground_truths)):
         print(f"Answer: {answer}")
         print(f"Ground truth: {ground_truth}")
         if evaluator == "sem_similarity":
@@ -309,7 +310,7 @@ def eval(rag_elements, method=None, given_queries=None, evaluator="sem_similarit
 
 def eval_context_goldPassages(rag_elements, goldPassages):
     # Evaluate context relevance with goldPassages
-    contexts = [element["contexts"] for element in rag_elements]
+    # contexts = [element["contexts"] for element in rag_elements]
     queries = [element["question"] for element in rag_elements]
     contexts_ids = [element["contexts_ids"] for element in rag_elements]
 
