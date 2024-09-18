@@ -1,5 +1,17 @@
 # Writee results of RAG pipeline evaluation to CSV file
 import csv
+import os
+
+import pandas as pd
+
+
+def get_csv_files_from_dir(dir):
+    csv_files = []
+    for file in sorted(os.listdir(dir)):
+        if file.endswith(".csv"):
+            csv_files.append(file)
+            print(file)
+    return csv_files
 
 
 def write_context_relevance_to_csv(filename, scores, evaluator):
@@ -123,7 +135,7 @@ def write_correctness_to_csv(filename, scores, evaluator):
         writer.writerow([title])
 
         # Write the header row
-        header = ["Ground_Truth", "Answer_Score"]
+        header = ["Answer", "Answer_Score"]
         writer.writerow(header)
 
         # Write the data rows
@@ -135,6 +147,7 @@ def write_correctness_to_csv(filename, scores, evaluator):
 
 
 def write_pipe_results_to_csv(data, filename):
+    print(f"Writing results to csv file: {filename}")
     # Define the column names
     fieldnames = [
         "question",
@@ -201,3 +214,66 @@ def read_pipe_results_from_csv(filename):
 
     print(f"Data has been read from {filename}")
     return data
+
+
+def write_eval_results_to_csv(
+    eval_results,
+    eval_results_dir,
+    pipe_results_file,
+    method,
+    evaluator,
+    slice_for_dev=None,
+):
+    ##
+    ## Instead of writing correctnos to a seperate csv file. Add it to the same csv file
+    ## and save as new eval results csv file
+    ##
+
+    # Get the pipe results file name
+    pipe_results_file_name = os.path.basename(pipe_results_file).split(".")[0]
+    # Define the file paths
+    eval_results_file = (
+        f"{eval_results_dir}/{pipe_results_file_name}{method}_{evaluator}.csv"
+    )
+    # Print for debugging
+    print(f"Eval results file name: {eval_results_file}")
+
+    # Load the CSV file into a DataFrame
+    df = pd.read_csv(pipe_results_file)
+
+    # Add a new column with default values None
+    df["Correct"] = None
+    df["CR"] = None
+    df["Faithfulness"] = None
+    df["AR"] = None
+
+    # Get the results for each evaluation metric
+    cr_results = eval_results.get("context_relevance", None)
+    faithfulness_results = eval_results.get("faithfulness", None)
+    ar_results = eval_results.get("answer_relevance", None)
+    correct_results = eval_results.get("correctness", None)
+
+    # Loop through the rows to calculate and add results
+
+    for index, row in df[:slice_for_dev].iterrows():
+        # Apply some logic to calculate the value for "CR"
+        # For example, let's assume the value of "CR" is based on the length of the 'answer' column
+        cr_value = cr_results.get(row["question"], None)
+        print(f"Cr Value: {cr_value}")
+        faith_value = faithfulness_results.get(row["answer"], None)
+        print(f"Faith Value: {faith_value}")
+        ar_value = ar_results.get(row["question"], None)
+        print(f"AR Value: {ar_value}")
+        corr_value = correct_results.get(row["answer"], None)
+        print(f"Correct Value: {corr_value}")
+
+        # Assign the calculated value to the new column "CR"
+        df.at[index, "Correct"] = corr_value
+        df.at[index, "CR"] = cr_value
+        df.at[index, "Faithfulness"] = faith_value
+        df.at[index, "AR"] = ar_value
+
+    # Save the updated DataFrame back to a CSV file
+    df.to_csv(eval_results_file, index=False)
+
+    print(f"Results written to {eval_results_file} successfully.")

@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 # Constants
 LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "llama3"
+LLM_NAME = "llama3.1:latest"
 
 
 def evaluate_context_relevance(
@@ -35,7 +35,7 @@ def evaluate_context_relevance(
         contexts = [None] * len(queries)
 
     # Loop over all queries with their respective contexts
-    for query, context in tqdm(zip(queries, contexts)):
+    for query, context in tqdm(zip(queries, contexts), total=len(queries)):
         if context is None:
             # Retrieve top 3 documents from index based on query
             context, ids = vectorDB.retrieveDocuments(query, 3)
@@ -51,6 +51,7 @@ def evaluate_context_relevance(
             elif evaluator == "llm_judge":
                 measure = llm_binary_context_relevance(single_context, query)
             # Convert measure to float and append to list
+            print(f"Measure: {measure}")
             measurements.append(round(float(measure), 3))
         # Compute mean context relevance over all contexts per query
         scores[query] = np.array(measurements)
@@ -85,7 +86,7 @@ def evaluate_faithfulness(
             f"Answers must be of type list, but got {type(answers).__name__}."
         )
     scores = {}
-    for answer, context in tqdm(zip(answers, contexts)):
+    for answer, context in tqdm(zip(answers, contexts), total=len(answers)):
         measurements = []
         for single_context in context:
             # Insert here evaluation measure of retrieved context
@@ -133,7 +134,7 @@ def evaluate_answer_relevance(queries, answers, evaluator="sem_similarity"):
         )
 
     scores = {}
-    for answer, query in tqdm(zip(answers, queries)):
+    for answer, query in tqdm(zip(answers, queries), total=len(answers)):
         print(f"Answer: {answer}")
         print(f"Query: {query}")
         # Evaluate context relevance based on chosen evaluator
@@ -179,7 +180,7 @@ def evaluate_correctness(answers, ground_truths, evaluator="sem_similarity"):
         )
 
     scores = {}
-    for answer, ground_truth in tqdm(zip(answers, ground_truths)):
+    for answer, ground_truth in tqdm(zip(answers, ground_truths), total=len(answers)):
         print(f"Answer: {answer}")
         print(f"Ground truth: {ground_truth}")
         if evaluator == "sem_similarity":
@@ -285,7 +286,7 @@ def eval(rag_elements, method=None, given_queries=None, evaluator="sem_similarit
     if method == "all":
         queries = [element["question"] for element in rag_elements]
         contexts = [element["contexts"] for element in rag_elements]
-        contexts_ids = [element["context_ids"] for element in rag_elements]
+        contexts_ids = [element["contexts_ids"] for element in rag_elements]
 
         answers = [element["answer"] for element in rag_elements]
         ground_truths = [element["ground_truth"] for element in rag_elements]

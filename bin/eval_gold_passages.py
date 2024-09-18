@@ -1,64 +1,81 @@
-# Usage example of rag evaluation
+# Test of rag evaluation
 # Imports
 import sys
+import time
 from pprint import pprint
+
+import pandas as pd
 
 sys.path.append("./dev/")
 sys.path.append("./src/")
-from csv_write import write_context_relevance_to_csv
-from dataset_helpers import DatasetHelpers
-from pipe import RagPipe
-from vector_store import VectorStore
 
-# Define API ENDPOINTS
-LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "llama3"
-MARQO_URL = "http://10.103.251.104:8882"
-MARQO_URL_GPU = "http://10.103.251.104:8880"
-
-
-# Load the dataset
-datasetHelpers = DatasetHelpers()
-corpus_list, queries, ground_truths, goldPassages = (
-    datasetHelpers.loadMiniBiosqa()
-)  # Mini Bios
-
-# Load the VectorStore
-documentDB = VectorStore(MARQO_URL_GPU)  # Connect to marqo client via python API
-# View indexes
-print(documentDB.getIndexes())
-# Connect to the miniwikiindex
-documentDB.connectIndex("minibios-qa-gpu")
-stats = documentDB.getIndexStats()
-print(stats)
-# Load the RagPipe
-pipe = RagPipe()
-pipe.connectVectorStore(documentDB)
-pipe.connectLLM(LLM_URL, LLM_NAME)
-
-# Run the rag pipeline, with or without newIngest. Recommended to try with newIngest=False first
-pipe.run(
-    questions=queries,
-    ground_truths=ground_truths,
-    goldPassagesIds=goldPassages,
-    corpus_list=corpus_list,
-    newIngest=False,
-    maxDocs=10,
-    maxQueries=3,
-    lang="EN",
-    rerank=False,
-    prepost_context=False,
+from csv_helpers import (
+    get_csv_files_from_dir,
+    read_pipe_results_from_csv,
+    write_eval_results_to_csv,
 )
+from evaluate import eval
 
-# Print results
-for elem in pipe.rag_elements:
-    pprint(elem)
+# Get pipe results file names
+pipe_results_dir = "./parallel_100_rows_pipe"
+pipe_results_file_names = get_csv_files_from_dir(pipe_results_dir)
 
-# Evaluate the rag pipeline, methods = "context_relevance", "answer_relevance", "faithfulness", "correctness", "all"
-# evaluator = "sem_similarity", "llm_judge"
-matches = pipe.eval_context_goldPassages(goldPassages)
-print(matches)
+# Define eval params
+method = "all"
+evaluator = "sem_similarity"
+
+# Define dataframe to hold the parameter confiurations and the gold passage matches
+context_matches_df = pd.DataFrame(columns=["param_settings", "matches"])
+# Time the evaluation
+start = time.time()
+# Loop over all pipe results files to conduct evaluation
+for pipe_results_file_name in pipe_results_file_names[:6]:  # Slice for dev
+    # Only look at files with quExp1_rerank1_cExpFalse_backRevFalse_numRef
+    pipe_results_file = f"{pipe_results_dir}/{pipe_results_file_name}"
+    print(pipe_results_file)
+    # Get param settings from the file name
+    param_settings = pipe_results_file_name.split("_")
+
+    # Test print results
+    # for elem in pipe_results:
+    #    pprint(elem)
+
+    # Evaluate pipe results
+    slice_for_dev = 100  # Slice for dev
+    df = pd.read_csv(pipe_results_file)
+
+    # Keep only the 'contexts_ids' and 'goldPassages' columns
+    # Calcualte matches between the ids in the two columns
+    df["contexts_ids"] = df["contexts_ids"].apply(
+        lambda row: list(map(int, row.split(", "))) if row else []
+    )
+    df["goldPassages"] = df["goldPassages"].apply(
+        lambda row: list(map(int, row.split(", "))) if row else []
+    )
+    # Calculate matches between the ids in the two columns
+    matches = df.apply(
+        lambda row: len(set(row["contexts_ids"]).intersection(row["goldPassages"])),
+        axis=1,
+    )
+    # Add the matches to the DataFrame
+    df = df[["contexts_ids", "goldPassages"]]
+    df["matches"] = matches
+
+    # Write the eval results to a csv file
+    # eval_results_dir = "./parallel_100_rows_eval"
+    # Add param settings and matches to the DataFrame
+    # print(f"Param settings: {param_settings}")
+    # print(f"Matches \n: {matches.array}")
+    context_matches_df = pd.concat(
+        [
+            context_matches_df,
+            pd.DataFrame(
+                [{"param_settings": param_settings, "matches": matches.array}],
+            ),
+        ],
+        ignore_index=True,
+    )
 
 
-# Write the scores to a csv file
-# write_goldPassages_to_csv("example_file_path.csv", scores, evaluator="sem_similarity")
+end = time.time()
+print(f"Context matches: {context_matches_df}")

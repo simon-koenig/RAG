@@ -9,7 +9,6 @@ from utils import chunkText
 
 # Reranker Endpoint
 RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
-query_threshold = 0.5
 
 
 class VectorStore:
@@ -343,7 +342,7 @@ class VectorStore:
         # filterstring = f"lang:{lang}"  # Add language to filter string
         # print(f"Filterstring: {filterstring}")
 
-        if query_expansion is False:
+        if query_expansion is (False or 0 or 1):
             # Semantic Search
             response_sem = self.mq.index(self.indexName).search(
                 q=query,  # Query string
@@ -426,8 +425,8 @@ class VectorStore:
                 )
 
             # Print or use the list of queries
-            print(extended_queries)
-            print(f" Type of extended queries: {type(extended_queries)}")
+            # print(extended_queries)
+            # print(f"Type of extended queries: {type(extended_queries)}")
 
             # Merge search results for all queries in the extended_queries list
             response_sem = []
@@ -508,12 +507,14 @@ class VectorStore:
                 ## Context Expansion
                 ##
 
-                if prepost_context:
+                if prepost_context is True:
                     pre_context = hit["pre_context"]
                     post_context = hit["post_context"]
                     context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
-                else:
+                elif prepost_context is False:
                     context = f" Context: {text} "
+                else:
+                    raise Exception("prepost_context must be a boolean value")
 
                 contexts.append(context)
                 # Get current context id and append to context_ids
@@ -534,7 +535,7 @@ class VectorStore:
             # Get response from reranker
             response = requests.post(RERANKER_ENDPOINT, headers=headers, json=data)
             # Safe guard
-            print(f"Response: {response}")
+            # print(f"Response: {response}")
             if not response.status_code == 200:
                 print("Reranker failed")
                 raise ("Reranker failed")
@@ -544,7 +545,7 @@ class VectorStore:
             # Iterate over reranked results
             for reranked_res in reranked_results:
                 current_index = reranked_res["result_index"]
-                print(f"Reranked index: {current_index}")
+                # print(f"Reranked index: {current_index}")
                 # Get current highest ranked context
                 hit = full_results[current_index]
                 # If needed, augment context with title, link and score
@@ -557,12 +558,15 @@ class VectorStore:
                 ## Context Expansion
                 ##
 
-                if prepost_context:
+                if prepost_context is True:
                     pre_context = hit["pre_context"]
                     post_context = hit["post_context"]
                     context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
-                else:
+                elif prepost_context is False:
                     context = f" Context: {text} "
+
+                else:
+                    raise Exception("prepost_context must be a boolean value")
 
                 contexts.append(context)
                 # Get current context id and append to context_ids
@@ -580,9 +584,9 @@ class VectorStore:
                 {"rank": i + 1, "id": response["chunk_id"]}
                 for i, response in enumerate(response_lex)
             ]
-            for i in range(len(tensor_results)):
-                pprint(tensor_results[i])
-                pprint(lex_results[i])
+            # for i in range(len(tensor_results)):
+            #    pprint(tensor_results[i])
+            #    pprint(lex_results[i])
 
             # Step 1: Init empty set
             unique_ids = set()
@@ -593,23 +597,23 @@ class VectorStore:
             # Step 3: Create a new dictionary with all values set to 0
             rrf_scores = {key: 0 for key in unique_ids}
 
-            pprint(rrf_scores)
+            # pprint(rrf_scores)
             # Step 4: Iterate over the results and add the scores
             for result in lex_results + tensor_results:
                 ID = result["id"]
                 rank = result["rank"]
                 rrf_scores[ID] += 1 / (rank + 60)
 
-            pprint(rrf_scores)
+            # pprint(rrf_scores)
 
             # Step 5: sort the search results by the rrf scores
             sorted_rrf_scores = sorted(
                 rrf_scores.items(), key=lambda x: x[1], reverse=True
             )
-            pprint(sorted_rrf_scores)
+            # pprint(sorted_rrf_scores)
             # Get sorted ids
             sorted_ids = [id_ for id_, score in sorted_rrf_scores]
-            pprint(sorted_ids)
+            # pprint(sorted_ids)
 
             # Step 1: Create a mapping from ID to full_results
             id_to_dict = {d["chunk_id"]: d for d in full_results}
@@ -618,7 +622,7 @@ class VectorStore:
             sorted_hits = [id_to_dict[id_] for id_ in sorted_ids]
 
             # Now, sorted_hits contains dictionaries ordered according to sorted_ids
-            pprint(sorted_hits)
+            # pprint(sorted_hits)
 
             # Build the background
             # Get current context
@@ -631,12 +635,15 @@ class VectorStore:
                 ##
                 ## Context Expansion
                 ##
-                if prepost_context:
+                if prepost_context is True:
                     pre_context = hit["pre_context"]
                     post_context = hit["post_context"]
                     context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
-                else:
+                elif prepost_context is False:
                     context = f" Context: {text} "
+
+                else:
+                    raise Exception("prepost_context must be a boolean value")
                 # Append to context list
                 contexts.append(context)
                 # Get current context id and append to context_ids
@@ -652,6 +659,10 @@ class VectorStore:
         # If ascending order is needed, set reverse to True
         if background_reversed is True:
             background = " ".join(reversed(contexts[:num_ref_lim]))
+
+        # Return top num_ref_lim contexts and their ids
+        contexts = contexts[:num_ref_lim]
+        context_ids = context_ids[:num_ref_lim]
 
         return background, contexts, context_ids
 

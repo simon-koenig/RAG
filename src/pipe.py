@@ -2,14 +2,11 @@
 
 from pprint import pprint
 
-import numpy as np
 import requests
-from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
 # Reranker Endpoint
 RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
-query_threshold = 0.5
 
 
 class RagPipe:
@@ -253,20 +250,39 @@ class RagPipe:
 
         # Update filter string with language for index search
         print("Waiting for background!")
-        background, contexts, contexts_ids = self.DB.getBackground(
-            query,
-            search_ref_lex=self.search_ref_lex,
-            search_ref_sem=self.search_ref_sem,
-            num_ref_lim=self.num_ref_lim,
-            lang=self.lang,
-            rerank=self.rerank,
-            prepost_context=self.prepost_context,
-            background_reversed=self.background_reversed,
-            query_expansion=self.query_expansion,
-            LLM_URL=self.LLM_URL,
-            LLM_NAME=self.LLM_NAME,
-        )
-        print("Background received!")
+        try:
+            background, contexts, contexts_ids = self.DB.getBackground(
+                query,
+                search_ref_lex=self.search_ref_lex,
+                search_ref_sem=self.search_ref_sem,
+                num_ref_lim=self.num_ref_lim,
+                lang=self.lang,
+                rerank=self.rerank,
+                prepost_context=self.prepost_context,
+                background_reversed=self.background_reversed,
+                query_expansion=self.query_expansion,
+                LLM_URL=self.LLM_URL,
+                LLM_NAME=self.LLM_NAME,
+            )
+        except Exception as e:
+            print(f"Error: {e}")
+            print("Trying again!")
+            background, contexts, contexts_ids = self.DB.getBackground(
+                query,
+                search_ref_lex=self.search_ref_lex,
+                search_ref_sem=self.search_ref_sem,
+                num_ref_lim=self.num_ref_lim,
+                lang=self.lang,
+                rerank=self.rerank,
+                prepost_context=self.prepost_context,
+                background_reversed=self.background_reversed,
+                query_expansion=self.query_expansion,
+                LLM_URL=self.LLM_URL,
+                LLM_NAME=self.LLM_NAME,
+            )
+        if not background:
+            print("No background received!")
+            raise ValueError("No background received!")
         # Update language prompt for LLM
         if self.lang == "DE":
             self.PROMPT = self.PROMPT_DE
