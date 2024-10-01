@@ -50,7 +50,7 @@ class DatasetHelpers:
             ground_truth = ground_truth.replace("\t", " ")
             ground_truths.append(ground_truth)
 
-        return corpus_list, queries, ground_truths
+        return corpus_list, queries, ground_truths, None
 
     def loadMiniBiosqa(self):
         # Load MiniBioasq dataset

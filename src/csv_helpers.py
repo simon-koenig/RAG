@@ -10,7 +10,7 @@ def get_csv_files_from_dir(dir):
     for file in sorted(os.listdir(dir)):
         if file.endswith(".csv"):
             csv_files.append(file)
-            print(file)
+            # print(file)  # Print for debugging
     return csv_files
 
 
@@ -170,7 +170,9 @@ def write_pipe_results_to_csv(data, filename):
             # Convert lists to strings for CSV format
             entry["contexts"] = ", ".join(entry["contexts"])
             entry["contexts_ids"] = ", ".join(map(str, entry["contexts_ids"]))
-            entry["goldPassages"] = ", ".join(map(str, entry["goldPassages"]))
+            # If gold passages are given: otherwise, leave as empty string
+            if entry["goldPassages"]:
+                entry["goldPassages"] = ", ".join(map(str, entry["goldPassages"]))
 
             writer.writerow(entry)
 
@@ -236,7 +238,7 @@ def write_eval_results_to_csv(
         f"{eval_results_dir}/{pipe_results_file_name}{method}_{evaluator}.csv"
     )
     # Print for debugging
-    print(f"Eval results file name: {eval_results_file}")
+    # print(f"Eval results file name: {eval_results_file}")
 
     # Load the CSV file into a DataFrame
     df = pd.read_csv(pipe_results_file)
@@ -253,25 +255,19 @@ def write_eval_results_to_csv(
     ar_results = eval_results.get("answer_relevance", None)
     correct_results = eval_results.get("correctness", None)
 
-    # Loop through the rows to calculate and add results
+    # print(f"CR Results: {cr_results}")
+    # print(f"Cr results type: {type(cr_results)}")
+    df.loc[: len(correct_results) - 1, "Correct"] = correct_results
+    df.loc[: len(ar_results) - 1, "AR"] = ar_results
 
-    for index, row in df[:slice_for_dev].iterrows():
-        # Apply some logic to calculate the value for "CR"
-        # For example, let's assume the value of "CR" is based on the length of the 'answer' column
-        cr_value = cr_results.get(row["question"], None)
-        print(f"Cr Value: {cr_value}")
-        faith_value = faithfulness_results.get(row["answer"], None)
-        print(f"Faith Value: {faith_value}")
-        ar_value = ar_results.get(row["question"], None)
-        print(f"AR Value: {ar_value}")
-        corr_value = correct_results.get(row["answer"], None)
-        print(f"Correct Value: {corr_value}")
+    print(f" len of cr results: {len(cr_results)}")
+    print(f" len of faithfulness results: {len(faithfulness_results)}")
 
-        # Assign the calculated value to the new column "CR"
-        df.at[index, "Correct"] = corr_value
-        df.at[index, "CR"] = cr_value
-        df.at[index, "Faithfulness"] = faith_value
-        df.at[index, "AR"] = ar_value
+    # Pad the cr_results to the length of df
+    # Pad each sublist in cr_results to ensure they all have the same length as the DataFrame
+    for i, (rowCR, rowFaith) in enumerate(zip(cr_results, faithfulness_results)):
+        df.loc[i, "CR"] = str(rowCR)
+        df.loc[i, "Faithfulness"] = str(rowFaith)
 
     # Save the updated DataFrame back to a CSV file
     df.to_csv(eval_results_file, index=False)

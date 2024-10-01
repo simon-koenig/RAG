@@ -1,15 +1,12 @@
 # Test of rag evaluation
 # Imports
 import sys
-from pprint import pprint
 
 sys.path.append("./dev/")
 sys.path.append("./src/")
-import csv
 
-from csv_helpers import read_pipe_results_from_csv, write_pipe_results_to_csv
+from csv_helpers import write_pipe_results_to_csv
 from dataset_helpers import DatasetHelpers
-from evaluate import eval
 from pipe import RagPipe
 from vector_store import VectorStore
 

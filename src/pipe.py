@@ -39,17 +39,15 @@ class RagPipe:
         self.PROMPT_EN = (
             "You are a helpful assisstant. Context information is given in the following text. "
             "Use the information from the context instead of pretrained knowledge to answer the question."
-            "If you are uncertain, you must say so. Give reasoning on your answer by only "
-            "refering to the given context."
-            "The answer should be a explicit and explainatory. "
         )
         self.PROMPT_DE = (
-            "Sie sind ein hilfreicher Assistent. Antworte auf Deutsch. Kontextinformationen sind im folgenden Text enthalten. "
+            "Sie sind ein hilfreicher Assistent. Antworten Sie auf Deutsch. Kontextinformationen sind im folgenden Text enthalten. "
             "Verwenden Sie ausschließlich Informationen aus dem Kontext, um die Frage zu beantworten. "
             'Sagen Sie nichts wie "Basierend auf dem gegebenen Kontext", geben Sie einfach die Antwort. '
             "Wenn Sie sich unsicher sind, müssen Sie das sagen. Begründen Sie Ihre Antwort, indem Sie nur "
             "indem Sie sich auf den gegebenen Kontext beziehen. "
             "Die Antwort sollte explizit und erläuternd sein. "
+            "Außer es ist eine Ja- oder Nein-Frage, dann antworten Sie mit Ja oder Nein."
         )
         # Default to english
         self.PROMPT = self.PROMPT_EN
@@ -202,7 +200,7 @@ class RagPipe:
             # "repeat_penalty": repeat_pen,
         }
         endpoint = self.LLM_URL + "/chat/completions"
-        print("Sending query to OpenAI endpoint: " + endpoint)
+        # print("Sending query to OpenAI endpoint: " + endpoint)
 
         # pprint(data)
         # Have neested try block to handle connection errors
@@ -219,7 +217,7 @@ class RagPipe:
             except Exception as e:
                 print(f"Error in second try: {e}")
 
-        print("Received response...")
+        # print("Received response...")
         if "choices" in report:
             if len(report["choices"]) > 0:  # Always take the first choice.
                 result = report["choices"][0]["message"]["content"]
@@ -249,7 +247,7 @@ class RagPipe:
         # Retrieve top k documents from indexName based on query
 
         # Update filter string with language for index search
-        print("Waiting for background!")
+        # print("Waiting for background!")
         try:
             background, contexts, contexts_ids = self.DB.getBackground(
                 query,
@@ -281,7 +279,7 @@ class RagPipe:
                 LLM_NAME=self.LLM_NAME,
             )
         if not background:
-            print("No background received!")
+            # print("No background received!")
             raise ValueError("No background received!")
         # Update language prompt for LLM
         if self.lang == "DE":
@@ -292,9 +290,12 @@ class RagPipe:
         # Tell llm again to obey instructions
         enforce_query = (
             "The answer has to mention explicit details and be short. "
-            " Do not state that you are referring to the context. "
+            "The answer should be a explicit and explainatory. "
+            "If its a yes or no question, just answer with yes or no."
+            "If the answer is not provided in the context. You must say that you dont know the answer."
+            "Do not state that you are referring to the context. "
             'The retrieved contexts always start with "Context:" '
-            "Given this context information and not prior knowledge, answer the following user query: "
+            "Given the context information and not prior knowledge, answer the following user query: "
             + query
         )
         messages = [
@@ -337,18 +338,32 @@ class RagPipe:
 
         # Create a list of dictionaries with keys: question, answer, contexts, context_ids, ground_truth
 
-        print("Start answering queries. Please wait. ")
+        # print("Start answering queries. Please wait. ")
 
-        # Create list of list of rag elements. Every rag element is a dictionary
-        # containing the question, answer, contexts, context_ids and ground_truth
         self.rag_elements = []
         if ground_truths is None:
-            print("No ground truths given!")
+            # print("No ground truths given!")
             ground_truths = [None] * len(questions)
 
+        # If goldPassagesIds are given and ground truths the same length as questions
+        # if goldPassagesIds is None, create a list of None values
+        if len(questions) > len(ground_truths):
+            ground_truths = ground_truths + [None] * (
+                len(questions) - len(ground_truths)
+            )
+        elif len(ground_truths) > len(questions):
+            ground_truths = ground_truths[: len(questions)]
+
         if goldPassagesIds is None:
-            print("No goldPassages given!")
+            # print("No goldPassages given!")
             goldPassagesIds = [None] * len(questions)
+
+        if len(questions) > len(goldPassagesIds):
+            goldPassagesIds = goldPassagesIds + [None] * (
+                len(questions) - len(goldPassagesIds)
+            )
+        elif len(goldPassagesIds) > len(questions):
+            goldPassagesIds = goldPassagesIds[: len(questions)]
 
         # Check if questions, ground_truths and goldPassages have the same length
         if not len(questions) == len(ground_truths) == len(goldPassagesIds):
@@ -356,6 +371,8 @@ class RagPipe:
                 "Questions, ground_truths and goldPassages must have the same length."
             )
 
+        # Create list of list of rag elements. Every rag element is a dictionary
+        # containing the question, answer, contexts, context_ids and ground_truth
         for question, ground_truth, goldPassages in zip(
             questions,
             ground_truths,
@@ -373,14 +390,14 @@ class RagPipe:
             )
 
         # Iterate over the rag elements and get the answer from the LLM model and the contexts from the Vector DB
-        size = len(self.rag_elements)
+        # size = len(self.rag_elements)
         for rag_element in tqdm(self.rag_elements):
-            print(f"Current Question: {rag_element['question']}")
+            # print(f"Current Question: {rag_element['question']}")
             # Get answer
             llmanswer, contexts, contexts_ids = self.answerQuery(
                 rag_element["question"],
             )
-            print("Received Answer from llm")
+            # print("Received Answer from llm")
             # Clean answer from llm
             llmanswer = llmanswer.replace("\n", " ")
             llmanswer = llmanswer.replace("\t", " ")
@@ -392,4 +409,4 @@ class RagPipe:
             rag_element["contexts_ids"] = contexts_ids
 
             # Update on progress
-            print(f"Progress: {self.rag_elements.index(rag_element) + 1}/{size}")
+            # print(f"Progress: {self.rag_elements.index(rag_element) + 1}/{size}")

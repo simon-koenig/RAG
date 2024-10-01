@@ -7,7 +7,7 @@ sys.path.append("./dev/")
 sys.path.append("./src/")
 
 from csv_helpers import read_pipe_results_from_csv
-from evaluate import eval
+from evaluate import evaluate
 from plot_helpers import plot_histogram
 
 ## Define eval params
@@ -22,7 +22,7 @@ pipe_results = read_pipe_results_from_csv(filename=csv_file_path)
 
 ## Evaluate pipe results
 
-eval_results = eval(pipe_results[:10], method=method, evaluator=evaluator)
+eval_results = evaluate(pipe_results[:10], method=method, evaluator=evaluator)
 # pprint(eval_results)
 
 

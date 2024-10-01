@@ -1,6 +1,6 @@
 # Vector Store for RAG pipeline
 
-from pprint import pprint
+# from pprint import pprint
 
 import marqo
 import requests
@@ -342,7 +342,10 @@ class VectorStore:
         # filterstring = f"lang:{lang}"  # Add language to filter string
         # print(f"Filterstring: {filterstring}")
 
-        if query_expansion is (False or 0 or 1):
+        # value = query_expansion in (False, 0, 1)
+        # print("Value of query expansion: ", value)
+        if query_expansion in (False, 0, 1):
+            # print("No query expansion is needed.")
             # Semantic Search
             response_sem = self.mq.index(self.indexName).search(
                 q=query,  # Query string
@@ -359,9 +362,14 @@ class VectorStore:
                 # filter_string=filterstring,  # Filter in db, e.g. for lang
                 search_method="LEXICAL",
             )["hits"]
+            # Print the contexts ids of the search results
+            # print("Semantic Search Results:")
+            # [print(hit["chunk_id"]) for hit in response_sem]
+            # print("Lexical Search Results:")
+            # [print(hit["chunk_id"]) for hit in response_lex]
 
         # If context expansion is needed
-        if query_expansion is not False:
+        if query_expansion >= 2:
             print("Query expansion is needed.")
             # Send data to the LLM for context expansion to retrieve more relevant contexts
             # Query expansion demands LLM_URL and LLM_NAME, otherwise not possible
@@ -471,11 +479,13 @@ class VectorStore:
         full_results = [
             item for pair in zip(response_lex, response_sem) for item in pair
         ]
-
+        # print("Size of full results: ", len(full_results))
         # Adding the remaining elements (if results are not the same length)
         full_results.extend(
             response_lex[len(response_sem) :] or response_sem[len(response_lex) :]
         )
+        # print("Size of full results: ", len(full_results))
+
         # Get plain text results for semantic reranker later on
         plain_text_results = [item["text"] for item in full_results]
 
@@ -483,31 +493,18 @@ class VectorStore:
         if rerank is False:
             # Combine semantic and lexical search results
             for hit in full_results:
+                # print(f"Hit: {hit} \n\n")
                 # If needed, augment context with title, link and score
                 text = hit["text"]
                 # title = hit["title"]
                 # link_url = hit["link_url"]
                 score = hit["_score"]
+
                 ##
                 ## Context Expansion
                 ##
+
                 if prepost_context:
-                    pre_context = hit["pre_context"]
-                    post_context = hit["post_context"]
-                    context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
-                else:
-                    context = f" Context: {text} "
-                # Append to context list
-                contexts.append(context)
-                # Get current context id and append to context_ids
-                Id = hit["chunk_id"]
-                context_ids.append(Id)
-
-                ##
-                ## Context Expansion
-                ##
-
-                if prepost_context is True:
                     pre_context = hit["pre_context"]
                     post_context = hit["post_context"]
                     context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
@@ -520,6 +517,8 @@ class VectorStore:
                 # Get current context id and append to context_ids
                 Id = hit["chunk_id"]
                 context_ids.append(Id)
+                # print(f"Context ids: {context_ids}")
+                # print(f" Size of context ids: {len(context_ids)}")
 
         if rerank is True:
             # Rerank the results using the semantic reranker
@@ -588,37 +587,37 @@ class VectorStore:
             #    pprint(tensor_results[i])
             #    pprint(lex_results[i])
 
-            # Step 1: Init empty set
-            unique_ids = set()
+            # Step 1: Fill set with unique ids using set comprehension
+            unique_ids = set(dic["id"] for dic in tensor_results + lex_results)
 
-            # Step 2: Combine the keys to get unique keys
-            for dic in tensor_results + lex_results:
-                unique_ids.add(dic["id"])
-            # Step 3: Create a new dictionary with all values set to 0
+            # Step 2: Create a new dictionary with all values set to 0
             rrf_scores = {key: 0 for key in unique_ids}
 
             # pprint(rrf_scores)
-            # Step 4: Iterate over the results and add the scores
-            for result in lex_results + tensor_results:
+            # Step 3: Iterate over the results and calculate the RRF scores
+            semantic_weight = 2  # Semantic search results are weighted higher
+            for result in tensor_results:
+                ID = result["id"]
+                rank = result["rank"]
+                rrf_scores[ID] += semantic_weight / (rank + 60)
+            for result in lex_results:
                 ID = result["id"]
                 rank = result["rank"]
                 rrf_scores[ID] += 1 / (rank + 60)
 
-            # pprint(rrf_scores)
-
-            # Step 5: sort the search results by the rrf scores
-            sorted_rrf_scores = sorted(
-                rrf_scores.items(), key=lambda x: x[1], reverse=True
-            )
-            # pprint(sorted_rrf_scores)
-            # Get sorted ids
-            sorted_ids = [id_ for id_, score in sorted_rrf_scores]
+            # Step 4: sort the search results by the rrf scores
+            sorted_ids = [
+                id_
+                for id_, score in sorted(
+                    rrf_scores.items(), key=lambda x: x[1], reverse=True
+                )
+            ]
             # pprint(sorted_ids)
 
-            # Step 1: Create a mapping from ID to full_results
+            # Create a mapping from ID to full_results
             id_to_dict = {d["chunk_id"]: d for d in full_results}
 
-            # Step 2: Sort the list of dictionaries according to sorted_ids
+            # Sort the list of dictionaries according to sorted_ids
             sorted_hits = [id_to_dict[id_] for id_ in sorted_ids]
 
             # Now, sorted_hits contains dictionaries ordered according to sorted_ids
@@ -631,7 +630,6 @@ class VectorStore:
                 # If needed, Augment context with title, link and score
                 # title = hit["title"]
                 # link_url = hit["link_url"]
-                score = hit["_score"]
                 ##
                 ## Context Expansion
                 ##
@@ -650,21 +648,30 @@ class VectorStore:
                 Id = hit["chunk_id"]
                 context_ids.append(Id)
 
+        # Remove duplicates from contexts and context_ids
+        unique_contexts = []
+        unique_context_ids = []
+        for i, context_id in enumerate(context_ids):
+            if context_id not in unique_context_ids:
+                unique_contexts.append(contexts[i])
+                unique_context_ids.append(context_id)
+        # Return top num_ref_lim contexts and their ids
+
+        unique_contexts = unique_contexts[:num_ref_lim]
+        # print(f"Contxt ids before slicing: {context_ids}")
+        unique_context_ids = unique_context_ids[:num_ref_lim]
+
         # Add context to background
-        # Use only the top num_ref_lim contexts for background
+        # Use only the top num_ref_lim unique_contexts for background
         # If descending order is needed, set reverse to False
         if background_reversed is False:
-            background = " ".join(contexts[:num_ref_lim])
+            background = " ".join(unique_contexts[:num_ref_lim])
 
         # If ascending order is needed, set reverse to True
         if background_reversed is True:
-            background = " ".join(reversed(contexts[:num_ref_lim]))
+            background = " ".join(reversed(unique_contexts[:num_ref_lim]))
 
-        # Return top num_ref_lim contexts and their ids
-        contexts = contexts[:num_ref_lim]
-        context_ids = context_ids[:num_ref_lim]
-
-        return background, contexts, context_ids
+        return background, contexts, unique_context_ids
 
     def getIndexes(self):
         """

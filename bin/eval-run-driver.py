@@ -1,7 +1,9 @@
 # Test of rag evaluation
 # Imports
+import concurrent.futures
 import sys
 import time
+from functools import partial
 from pprint import pprint
 
 sys.path.append("./dev/")
@@ -9,59 +11,45 @@ sys.path.append("./src/")
 
 from csv_helpers import (
     get_csv_files_from_dir,
-    read_pipe_results_from_csv,
-    write_eval_results_to_csv,
 )
-from evaluate import eval
+from drivers import eval_single_pipe_result
 
 # Get pipe results file names
-pipe_results_dir = "./parallel_100_rows_pipe"
+pipe_results_dir = "./parallel_100_rows_pipe/miniWiki"
 pipe_results_file_names = get_csv_files_from_dir(pipe_results_dir)
+# Define directory for eval results
+eval_results_dir = "./parallel_100_rows_eval/miniWiki"
 
 # Define eval params
 method = "all"
-evaluator = "sem_similarity"
+evaluator = "llm_judge"
+n_worker = 8
 
 # Time the evaluation
 start = time.time()
-# Loop over all pipe results files to conduct evaluation
-for pipe_results_file_name in pipe_results_file_names[:]:  # Slice for dev
-    # Only look at files with quExp1_rerank1_cExpFalse_backRevFalse_numRef
-    if "quExp1_" not in pipe_results_file_name:
-        continue
-    pipe_results_file = f"{pipe_results_dir}/{pipe_results_file_name}"
-    print(pipe_results_file)
+# Loop over all pipe results files to conduct evaluation.
+# Create a partial function to pass the fixed parameters to the helper function
+# While varying the pipe results file name
+partial_helper_vary_input_file = partial(
+    eval_single_pipe_result,  # Function to call for single pipe result evaluation
+    pipe_results_dir=pipe_results_dir,
+    eval_results_dir=eval_results_dir,
+    method=method,
+    evaluator=evaluator,
+    slice_for_dev=100,
+)
 
-    # Read pipe results from CSV
-    pipe_results = read_pipe_results_from_csv(filename=pipe_results_file)
+with concurrent.futures.ThreadPoolExecutor(max_workers=n_worker) as executor:
+    for pipe_results_file_name in pipe_results_file_names[:1]:  # Slice for dev
+        if "quExp1" in pipe_results_file_name:
+            executor.submit(partial_helper_vary_input_file, pipe_results_file_name)
 
-    # Test print results
-    # for elem in pipe_results:
-    #    pprint(elem)
-
-    # Evaluate pipe results
-    slice_for_dev = 100  # Slice for dev
-    eval_results = eval(
-        pipe_results[:slice_for_dev], method=method, evaluator=evaluator
-    )
-    pprint(eval_results)
-
-    # Write the eval results to a csv file
-    eval_results_dir = "./parallel_100_rows_eval"
-
-    # Write results of a single pipe run to a csv file
-    write_eval_results_to_csv(
-        eval_results=eval_results,
-        eval_results_dir=eval_results_dir,
-        pipe_results_file=pipe_results_file,
-        method=method,
-        evaluator=evaluator,
-        slice_for_dev=slice_for_dev,
-    )
+# print(f"Generated an exception: {exc}")
 
 
 end = time.time()
 print(
-    f"Time taken for eval of : {end - start} seconds for eval of {len(pipe_results_file_names[1:])} pipe run.\n"
+    f"Time taken for eval of : {end - start} seconds for eval of {len(pipe_results_file_names)} files.\n"
+    f"with 10 rows per file.\n"
     f"Method {method} and evaluator {evaluator}.\n"
 )
