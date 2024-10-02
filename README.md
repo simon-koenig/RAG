@@ -48,6 +48,7 @@ from csv_write import write_correctness_to_csv
 from dataset_helpers import DatasetHelpers
 from pipe import RagPipe
 from vector_store import VectorStore
+from evaluate import evaluate
 ```
 
 Define API ENDPOINTS, e.g.:
@@ -108,18 +109,28 @@ Link pipeline object to vector data base
 pipe.connectVectorStore(documentDB)
 ```
 
-Run a single query with rag pipeline
+Run a single test query with rag pipeline
 ```python
 pipe.answerQuery("Who invented basketball?")
 ```
 
-Or run the rag pipeline with multiple queries from dataset. Run with 5 queries, no reranking and no pre and post context for a sneak peek. 
+Or run the rag pipeline with costum settings and multiple queries 
 ```python
+pipe.setConfigs(
+    lang="EN",
+    query_expansion=1,
+    rerank=False,
+    prepost_context=False,
+    background_reversed=False,
+    search_ref_lex=2,
+    search_ref_sem=2,
+    num_ref_lim=4,
+    model_temp=0.1,
+    answer_token_num=50,
+)
+
 pipe.run(
         queries,
-        rerank=False,
-        prepost_context=False,
-        maxQueries=5
 )
 ```
 
@@ -135,7 +146,7 @@ Evaluate the results
 methods = "context_relevance", "answer_relevance", "faithfulness", "correctness", "all"
 
 evaluator = "sem_similarity", "llm_judge"
-scores = pipe.eval(method="context_relevance", evaluator="sem_similarity")
+scores = evaluate(method="all", evaluator="sem_similarity")
 
 print(scores)
 ```
