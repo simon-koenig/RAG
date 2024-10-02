@@ -129,6 +129,7 @@ pipe.setConfigs(
     answer_token_num=50,
 )
 
+# queries = ["Who is him", "Who invented basketball?", "What is the temperature of the sun?"]
 pipe.run(
         queries,
 )
