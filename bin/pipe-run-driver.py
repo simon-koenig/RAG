@@ -1,5 +1,6 @@
 # Test of rag evaluation
 # Imports
+import logging
 import sys
 import time
 from functools import partial
@@ -68,6 +69,8 @@ parameters = list(
         query_expansion, rerank, prepost_context, background_reversed, num_ref_lim
     )
 )
+
+
 # Run pipeline for all parameter permutations
 n_slice_rag_elements = 100
 write_to_dir = "./parallel_100_rows_pipe/miniWiki/"
@@ -88,17 +91,23 @@ dev_helper_func = partial(
 n_worker = 8
 # Run the pipeline in parallel
 
-# with open(f"{write_to_dir}/timing_results.txt", "w") as outfile:
-#    outfile.write(
-#        f"MiniWiki Dataset, Queries {n_slice_rag_elements}, dim parameterspace: {len(parameters)} \n"
-#    )
-# for n_worker in n_workers:
-start = time.time()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 # Parallel
+start = time.time()
 with concurrent.futures.ThreadPoolExecutor(max_workers=n_worker) as executor:
-    executor.map(dev_helper_func, parameters)
-    # print(future.result())
+    futures = [executor.submit(dev_helper_func, param) for param in parameters]
+    for future in concurrent.futures.as_completed(futures):
+        try:
+            future.result()
+        except Exception as exc:
+            logging.error(f"Generated an exception: {exc}")
     print(f"Execution with {n_worker} workers")
+
+
 end = time.time()
 temp = end - start
 # outfile.write(f"Execution with {n_worker} workers took {temp} seconds\n")

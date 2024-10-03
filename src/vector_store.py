@@ -541,6 +541,8 @@ class VectorStore:
                 return
             # Unpack json response
             reranked_results = response.json()
+            # print(f"Data: {data}")
+            # print(f"Reranked results: {reranked_results}")
             # Iterate over reranked results
             for reranked_res in reranked_results:
                 current_index = reranked_res["result_index"]
@@ -665,13 +667,17 @@ class VectorStore:
         # Use only the top num_ref_lim unique_contexts for background
         # If descending order is needed, set reverse to False
         if background_reversed is False:
-            background = " ".join(unique_contexts[:num_ref_lim])
+            background = " ".join(
+                unique_contexts[: min(num_ref_lim, len(unique_contexts))]
+            )
 
         # If ascending order is needed, set reverse to True
         if background_reversed is True:
-            background = " ".join(reversed(unique_contexts[:num_ref_lim]))
+            background = " ".join(
+                reversed(unique_contexts[: min(num_ref_lim, len(unique_contexts))])
+            )
 
-        return background, contexts, unique_context_ids
+        return background, unique_contexts, unique_context_ids
 
     def getIndexes(self):
         """

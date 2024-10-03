@@ -206,13 +206,13 @@ class RagPipe:
         # Have neested try block to handle connection errors
         try:
             report = requests.post(endpoint, headers=headers, json=data)
-            pprint(report)
+            # pprint(report)
             report = report.json()
         except Exception as e:
             print(f"Error: {e}")
             try:
                 report = requests.post(endpoint, headers=headers, json=data)
-                pprint(report)
+                # pprint(report)
                 report = report.json()
             except Exception as e:
                 print(f"Error in second try: {e}")
@@ -394,15 +394,27 @@ class RagPipe:
         for rag_element in tqdm(self.rag_elements):
             # print(f"Current Question: {rag_element['question']}")
             # Get answer
-            llmanswer, contexts, contexts_ids = self.answerQuery(
-                rag_element["question"],
-            )
+            try:
+                llmanswer, contexts, contexts_ids = self.answerQuery(
+                    rag_element["question"],
+                )
+            except Exception as e:
+                print(f"Error: {e}")
+                print(f"Currrent question: {rag_element['question']}")
+                print("Could not answer question. Skipping to next question.")
+
             # print("Received Answer from llm")
             # Clean answer from llm
             llmanswer = llmanswer.replace("\n", " ")
             llmanswer = llmanswer.replace("\t", " ")
             llmanswer = llmanswer.replace("\r", " ")
             llmanswer = llmanswer.strip()
+
+            # Clean contexts
+            contexts = [context.replace("\n", " ") for context in contexts]
+            contexts = [context.replace("\t", " ") for context in contexts]
+            contexts = [context.replace("\r", " ") for context in contexts]
+            contexts = [context.strip(". ") for context in contexts]
 
             rag_element["answer"] = llmanswer
             rag_element["contexts"] = contexts

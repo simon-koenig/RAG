@@ -52,8 +52,8 @@ def pipe_single_setting_run(
         rerank=rerank_val,
         prepost_context=prepost_context_val,
         background_reversed=background_reversed_val,
-        search_ref_lex=4,
-        search_ref_sem=4,
+        search_ref_lex=8,
+        search_ref_sem=8,
         num_ref_lim=num_ref_lim_val,
         model_temp=0.0,
         answer_token_num=50,
@@ -61,7 +61,6 @@ def pipe_single_setting_run(
 
     # Run pipeline
     # With slice of rag elements for dev
-    print(f"goldPassages: {goldPassages}")
     pipe.run(
         questions=queries[:n_slice_rag_elements],
         ground_truths=ground_truths,

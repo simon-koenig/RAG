@@ -1,5 +1,0 @@
-Execution times (nWorker, time (sec)), for loop with size 8 and 10 rag elements per loop step
-(1, 1120.10484957695)
-(2, 678.0017912387848)
-(4, 496.3714499473572)
-(8, 472.4733603000641)

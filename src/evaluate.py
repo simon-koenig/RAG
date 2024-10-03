@@ -1,4 +1,7 @@
 # Imports
+import re
+from collections import Counter
+
 import numpy as np
 import requests
 from bert_score import BERTScorer
@@ -9,7 +12,102 @@ from tqdm import tqdm
 # Constants
 LLM_URL = "http://10.103.251.104:8040/v1"
 LLM_NAME = "llama3.1:latest"
-scorer = BERTScorer(model_type="roberta-base")
+
+
+def evaluate(rag_elements, method=None, given_queries=None, evaluator="sem_similarity"):
+    if evaluator == "sem_similarity":
+        scorer = BERTScorer(model_type="roberta-base")
+    # Select evalaution method to run
+    if method is None or method not in [
+        "context_relevance",
+        "faithfulness",
+        "answer_relevance",
+        "correctness",
+        "all",
+    ]:
+        print("No evaluation method selected")
+        return
+    # Print choices
+    # print(f"Running evaluation for method: {method}")
+    # print(f"Using evaluator: {evaluator}")
+
+    if method == "context_relevance":
+        if given_queries is not None:
+            # Bypass rag pipeline run and just evaluate context relevance
+            # betweeen given_queries and contexts
+            scores = evaluate_context_relevance(
+                given_queries, contexts=None, evaluator=evaluator, scorer=scorer
+            )
+        else:
+            contexts = [element["contexts"] for element in rag_elements]
+            queries = [element["question"] for element in rag_elements]
+            contexts_ids = [element["contexts_ids"] for element in rag_elements]
+            scores = evaluate_context_relevance(
+                queries,
+                contexts,
+                contexts_ids=contexts_ids,
+                evaluator=evaluator,
+                scorer=scorer,
+            )
+        return scores
+
+    if method == "faithfulness":
+        answers = [element["answer"] for element in rag_elements]
+        contexts = [element["contexts"] for element in rag_elements]
+        contexts_ids = [element["contexts_ids"] for element in rag_elements]
+        scores = evaluate_faithfulness(
+            answers,
+            contexts,
+            contexts_ids=contexts_ids,
+            evaluator=evaluator,
+            scorer=scorer,
+        )
+        return scores
+
+    if method == "answer_relevance":
+        queries = [element["question"] for element in rag_elements]
+        answers = [element["answer"] for element in rag_elements]
+        scores = evaluate_answer_relevance(queries, answers, evaluator)
+        return scores
+
+    if method == "correctness":
+        answers = [element["answer"] for element in rag_elements]
+        ground_truths = [element["ground_truth"] for element in rag_elements]
+        scores = evaluate_correctness(answers, ground_truths, evaluator, scorer)
+        return scores
+
+    if method == "all":
+        queries = [element["question"] for element in rag_elements]
+        contexts = [element["contexts"] for element in rag_elements]
+        contexts_ids = [element["contexts_ids"] for element in rag_elements]
+
+        answers = [element["answer"] for element in rag_elements]
+        ground_truths = [element["ground_truth"] for element in rag_elements]
+
+        cr_scores = evaluate_context_relevance(
+            queries,
+            contexts,
+            evaluator=evaluator,
+            contexts_ids=contexts_ids,
+            scorer=scorer,
+        )
+
+        f_scores = evaluate_faithfulness(
+            answers,
+            contexts,
+            evaluator=evaluator,
+            contexts_ids=contexts_ids,
+            scorer=scorer,
+        )
+        ar_scores = evaluate_answer_relevance(queries, answers, evaluator, scorer)
+        c_scores = evaluate_correctness(answers, ground_truths, evaluator, scorer)
+
+        return {
+            "context_relevance": cr_scores,
+            "faithfulness": f_scores,
+            "answer_relevance": ar_scores,
+            "correctness": c_scores,
+        }
 
 
 def evaluate_context_relevance(
@@ -19,6 +117,7 @@ def evaluate_context_relevance(
     goldPassages=None,
     evaluator="sem_similarity",
     vectorDB=None,
+    scorer=None,
 ):
     # Type checking
     if not isinstance(queries, list):
@@ -27,7 +126,11 @@ def evaluate_context_relevance(
         )
 
     # Initialize scores array
-    scores = np.zeros((len(queries), len(contexts[0])), dtype=float)
+    max_context_length = max(
+        len(context) for context in contexts if context is not None
+    )
+    scores = np.zeros((len(queries), max_context_length), dtype=float)
+    # scores = []
     ##
     ## Evaluate context relevance without pipeline run beforehand
     ## In this case Please provide a vectorDB object to retrieve documents from index.
@@ -53,9 +156,11 @@ def evaluate_context_relevance(
 
             # Evaluate context relevance based on chosen evaluator
             if evaluator == "sem_similarity":
-                measure = semantic_similarity(single_context, query)
+                measure = semantic_similarity(single_context, query, scorer)
             elif evaluator == "llm_judge":
                 measure = llm_binary_context_relevance(single_context, query)
+            elif evaluator == "ROUGE-2":
+                measure = ROUGE(single_context, query)
             # Convert measure to float and append to list
             # print(f"Measure: {measure}")
             measurements.append(round(float(measure), 3))
@@ -63,7 +168,13 @@ def evaluate_context_relevance(
 
         # measurements = np.array(measurements)
         # print(f"Measurements: {measurements}")
-        scores[i] = measurements
+
+        # Extend measurements with None to match max_context_length if needed
+        measurements.extend([None] * (max_context_length - len(measurements)))
+
+        scores[i] = np.array(measurements)
+
+        # scores.append(measurements)
 
     return scores
 
@@ -71,25 +182,32 @@ def evaluate_context_relevance(
 def llm_binary_context_relevance(context, query):
     messages = [
         {
-            "role": "system",
+            "role": "user",
             "content": (
                 "Given the following context and query,"
-                " Give a binary rating, either 0 or 1."
-                " Respond with 0 if an answer to the query cannot be derived from the given context."
-                " Respond with 1 if an answer to the query can be derived from the given context."
-                ' Your response must strictly and only be a single integer "0" or "1" and no additional text.'
+                " Give a rating from 1 to 5."
+                " Respond with 1 if the context is not relevant to the query at all."
+                " Respond with 2 if the context is slightly relevant to the query."
+                " Respond with 3 if the context is moderately relevant to the query."
+                " Respond with 4 if the context is mostly relevant to the query."
+                " Respond with 5 if the context is completely relevant to the query."
+                ' Your response must strictly and only be a single integer from "1" to "5" and no additional text.'
                 " Some Examples:"
-                ' If the context is "The sky is blue" and the query is "What color is the sky?", your response should be "1".'
-                ' If the context is "The sky is blue" and the query is "What color is the grass?", your response should be "0".'
-                ' If the context is "Water boils at 100 degrees Celsius" and the query is "At what temperature does water boil?", your response should be "1".'
-                ' If the context is "Water boils at 100 degrees Celsius" and the query is "At what temperature does water freeze?", your response should be "0".'
-                ' If the context is "The pandemic, spanning the whole globe started in 2019. " and the query is "What year did the corona pandemic start?", your response should be "1".'
-                ' If the context is "The pandemic, was a global event and lead to many deaths. " and the query is "What year did the corona pandemic start?", your response should be "0".'
+                ' If none of the nouns in the query are present in the context, the context is not relevant and your response should be "1".'
+                ' If the context is "The sky is blue" and the query is "What color is the grass?", your response should be "1".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the query is "At what temperature does water freeze?", your response should be "1".'
+                ' If the context is "The pandemic, was a global event and lead to many deaths." and the query is "What year did the corona pandemic start?", your response should be "1".'
+                ' If the context is "The pandemic, spanning the whole globe started in 2019." and the query is "What year did the corona pandemic start?", your response should be "5".'
+                ' If the context is "The sky is blue" and the query is "What color is the sky?", your response should be "5".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the query is "At what temperature does water boil?", your response should be "5".'
+                ' If the context is "The sky is blue" and the query is "What is the weather like?", your response should be "4".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the query is "What happens to water at high temperatures?", your response should be "4".'
+                ' If the context is "The sky is blue" and the query is "What color is the sky usually?", your response should be "3".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the query is "At what temperature does water usually boil?", your response should be "3".'
+                ' If the context is "The sky is blue" and the query is "What color is the ocean?", your response should be "2".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the query is "What is the boiling point of water in Fahrenheit?", your response should be "2".'
+                f'Here are the Context: "{context}" and the Query: "{query}".'
             ),
-        },
-        {
-            "role": "user",
-            "content": f'Here are the Context: "{context}" and the Query: "{query}".',
         },
     ]
 
@@ -98,16 +216,18 @@ def llm_binary_context_relevance(context, query):
 
 
 def evaluate_faithfulness(
-    answers, contexts, evaluator="sem_similarity", contexts_ids=None
+    answers, contexts, evaluator="sem_similarity", contexts_ids=None, scorer=None
 ):
     # Type checking
     if not isinstance(answers, list):
         raise TypeError(
             f"Answers must be of type list, but got {type(answers).__name__}."
         )
-
+    max_context_length = max(
+        len(context) for context in contexts if context is not None
+    )
     # Initialize scores array
-    scores = np.zeros((len(answers), len(contexts[0])), dtype=float)
+    scores = np.zeros((len(answers), max_context_length), dtype=float)
     for i, (answer, context) in tqdm(
         enumerate(zip(answers, contexts)), total=len(answers)
     ):
@@ -116,13 +236,17 @@ def evaluate_faithfulness(
             # Insert here evaluation measure of retrieved context
             # print(f"Context: {single_context}")  #
             if evaluator == "sem_similarity":
-                measure = semantic_similarity(single_context, answer)
+                measure = semantic_similarity(answer, single_context, scorer)
             elif evaluator == "llm_judge":
-                measure = llm_binary_faithfulness(single_context, answer)
+                measure = llm_binary_faithfulness(answer, single_context)
+            elif evaluator == "ROUGE-2":
+                measure = ROUGE(answer, single_context)
 
             measurements.append(round(float(measure), 3))
-        # Compute mean faithfulness over all contexts per answer
-        scores[i] = np.array(measurements)  # Insert evaluation measure here
+
+        # Extend measurements with None to match max_context_length if needed
+        measurements.extend([None] * (max_context_length - len(measurements)))
+        scores[i] = np.array(measurements)
 
     return scores
 
@@ -130,25 +254,35 @@ def evaluate_faithfulness(
 def llm_binary_faithfulness(context, answer):
     messages = [
         {
-            "role": "system",
+            "role": "user",
             "content": (
                 "Given the following context and answer,"
-                " Give a binary rating, either 0 or 1."
-                " Respond with 0 if the answer is not sufficiently grounded in the context."
-                " Respond with 1 if the answer is sufficiently grounded in the context."
-                ' Your response must strictly and only be a single integer "0" or "1" and no additional text.'
+                " Give a rating from 1 to 5."
+                " Respond with 1 if the answer is not sufficiently grounded in the context at all."
+                " Respond with 2 if the answer is slightly grounded in the context."
+                " Respond with 3 if the answer is moderately grounded in the context."
+                " Respond with 4 if the answer is mostly grounded in the context."
+                " Respond with 5 if the answer is completely grounded in the context."
+                ' Your response must strictly and only be a single integer from "1" to "5" and no additional text.'
                 " Some Examples:"
-                ' If the context is "The sky is blue" and the answer is "The sky is blue", your response should be "1".'
-                ' If the context is "The sky is blue" and the answer is "The grass is green", your response should be "0".'
-                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water boils at 100 degrees Celsius", your response should be "1".'
-                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water freezes at 0 degrees Celsius", your response should be "0".'
-                ' If the context is "The pandemic, spanning the whole globe started in 2019." and the answer is "The pandemic started in 2019.", your response should be "1".'
-                ' If the context is "The pandemic, was a global event and lead to many deaths." and the answer is "The pandemic started in 2019.", your response should be "0".'
+                ' If none of the nouns in the answer are present in the context, the answer is not grounded and your response should be "1".'
+                ' If the answer is "I do not know" or "there is no mention of {...} in the given context", the answer is not grounded and your response should be "1".'
+                ' If the context is "The sky is blue" and the answer is "The sky is blue", your response should be "5".'
+                ' If the context is "The sky is blue" and the answer is "The grass is green", your response should be "1".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water boils at 100 degrees Celsius", your response should be "5".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water freezes at 0 degrees Celsius", your response should be "1".'
+                ' If the context is "The pandemic, spanning the whole globe started in 2019." and the answer is "The pandemic started in 2019.", your response should be "5".'
+                ' If the context is "The pandemic, was a global event and lead to many deaths." and the answer is "The pandemic started in 2019.", your response should be "1".'
+                ' If the context is "The sky is blue" and the answer is "The sky is somewhat blue", your response should be "3".'
+                ' If the context is "The sky is blue" and the answer is "The sky is clear and blue", your response should be "4".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water boils at around 100 degrees Celsius", your response should be "4".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water boils at a high temperature", your response should be "3".'
+                ' If the context is "The pandemic, spanning the whole globe started in 2019." and the answer is "The pandemic started in late 2019.", your response should be "4".'
+                ' If the context is "The pandemic, spanning the whole globe started in 2019." and the answer is "The pandemic started in the year 2019.", your response should be "5".'
+                ' If the context is "The pandemic, was a global event and lead to many deaths." and the answer is "The pandemic was a significant global event.", your response should be "2".'
+                ' If the context is "The pandemic, was a global event and lead to many deaths." and the answer is "The pandemic caused many deaths.", your response should be "2".'
+                f'Here are the Context: "{context}" and the Answer: "{answer}".'
             ),
-        },
-        {
-            "role": "user",
-            "content": f'Here are the Context: "{context}" and the Answer: "{answer}".',
         },
     ]
 
@@ -156,7 +290,9 @@ def llm_binary_faithfulness(context, answer):
     return result
 
 
-def evaluate_answer_relevance(queries, answers, evaluator="sem_similarity"):
+def evaluate_answer_relevance(
+    queries, answers, evaluator="sem_similarity", scorer=None
+):
     # Type checking
     if not isinstance(answers, list):
         raise TypeError(
@@ -177,9 +313,11 @@ def evaluate_answer_relevance(queries, answers, evaluator="sem_similarity"):
         # print(f"Query: {query}")
         # Evaluate context relevance based on chosen evaluator
         if evaluator == "sem_similarity":
-            measure = semantic_similarity(answer, query)
+            measure = semantic_similarity(answer, query, scorer=scorer)
         elif evaluator == "llm_judge":
             measure = llm_binary_answer_relevance(answer, query)
+        elif evaluator == "ROUGE-2":
+            measure = ROUGE(answer, query)
         # Convert measure to float and append to list
         scores[i] = round(float(measure), 3)
     return scores
@@ -188,32 +326,44 @@ def evaluate_answer_relevance(queries, answers, evaluator="sem_similarity"):
 def llm_binary_answer_relevance(answer, query):
     messages = [
         {
-            "role": "system",
+            "role": "user",
             "content": (
                 "Given the following query and answer,"
-                " Give a binary rating, either 0 or 1."
-                " Respond with 0 if the answer is not relevant to the query."
-                " Respond with 1 if the answer is relevant to the query."
-                ' Your response must strictly and only be a single integer "0" or "1" and no additional text.'
+                " Give a rating from 1 to 5."
+                " Respond with 1 if the answer is not relevant to the query at all."
+                " Respond with 2 if the answer is slightly relevant to the query."
+                " Respond with 3 if the answer is moderately relevant to the query."
+                " Respond with 4 if the answer is mostly relevant to the query."
+                " Respond with 5 if the answer is completely relevant to the query."
+                ' Your response must strictly and only be a single integer from "1" to "5" and no additional text.'
                 " Some Examples:"
-                ' If the query is "What color is the sky?" and the answer is "The sky is blue", your response should be "1".'
-                ' If the query is "What color is the grass?" and the answer is "The sky is blue", your response should be "0".'
-                ' If the query is "At what temperature does water boil?" and the answer is "Water boils at 100 degrees Celsius", your response should be "1".'
-                ' If the query is "At what temperature does water freeze?" and the answer is "Water boils at 100 degrees Celsius", your response should be "0".'
-                ' If the query is "What year did the corona pandemic start?" and the answer is "The pandemic, spanning the whole globe started in 2019.", your response should be "1".'
-                ' If the query is "What year did the corona pandemic start?" and the answer is "The pandemic, was a global event and lead to many deaths.", your response should be "0".'
+                " If none of the nouns in the answer are present in the query, the answer is not relevant."
+                ' If the answer is "I do not know" or "there is no mention of {...} in the given context", your response should be "1".'
+                ' If the query is "What color is the sky?" and the answer is "The sky is blue", your response should be "5".'
+                ' If the query is "What color is the grass?" and the answer is "The sky is blue", your response should be "1".'
+                ' If the query is "At what temperature does water boil?" and the answer is "Water boils at 100 degrees Celsius", your response should be "5".'
+                ' If the query is "At what temperature does water freeze?" and the answer is "Water boils at 100 degrees Celsius", your response should be "1".'
+                ' If the query is "What year did the corona pandemic start?" and the answer is "The pandemic, spanning the whole globe started in 2019.", your response should be "5".'
+                ' If the query is "What year did the corona pandemic start?" and the answer is "The pandemic, was a global event and lead to many deaths.", your response should be "1".'
+                ' If the query is "What is the capital of France?" and the answer is "Paris is the capital of France.", your response should be "5".'
+                ' If the query is "What is the capital of France?" and the answer is "France is a country in Europe.", your response should be "1".'
+                ' If the query is "What is the capital of Germany?" and the answer is "Berlin is a major city in Germany.", your response should be "4".'
+                ' If the query is "What is the capital of Germany?" and the answer is "Berlin is the capital of Germany.", your response should be "5".'
+                ' If the query is "What is the capital of Germany?" and the answer is "Germany is a country in Europe.", your response should be "1".'
+                ' If the query is "What is the capital of Germany?" and the answer is "Berlin is a city in Germany.", your response should be "4".'
+                ' If the query is "What is the capital of Germany?" and the answer is "Berlin is a large city.", your response should be "3".'
+                ' If the query is "What is the capital of Germany?" and the answer is "Berlin is known for its history.", your response should be "2".'
+                f'Here are the Query: "{query}" and the Answer: "{answer}".'
             ),
-        },
-        {
-            "role": "user",
-            "content": f'Here are the Query: "{query}" and the Answer: "{answer}".',
         },
     ]
     result = evalSendToLLM(messages)
     return result
 
 
-def evaluate_correctness(answers, ground_truths, evaluator="sem_similarity"):
+def evaluate_correctness(
+    answers, ground_truths, evaluator="sem_similarity", scorer=None
+):
     # Type checking
     if not isinstance(answers, list):
         raise TypeError(
@@ -233,12 +383,14 @@ def evaluate_correctness(answers, ground_truths, evaluator="sem_similarity"):
         # print(f"Answer: {answer}")
         # print(f"Ground truth: {ground_truth}")
         if evaluator == "sem_similarity":
-            measure = semantic_similarity(answer, ground_truth)
+            measure = semantic_similarity(answer, ground_truth, scorer=scorer)
         elif evaluator == "llm_judge":
             measure = llm_binary_correctness(answer, ground_truth)
+        elif evaluator == "ROUGE-2":
+            measure = ROUGE(answer, ground_truth)
 
         scores[i] = round(float(measure), 3)
-    print(f" Scores: {scores}")
+    # print(f" Scores: {scores}")
     return scores
 
 
@@ -248,143 +400,78 @@ def llm_binary_correctness(answer, ground_truth):
             "role": "system",
             "content": (
                 "Given the following answer and ground-truth,"
-                "Analyse the answer and ground-truth without consulting prior knowledge."
-                " Give a binary rating, either 0 or 1."
-                " Respond with 1 if the answer is true based on the ground-truth."
-                " Respond with 0 if the answer is incorrect based on the ground-truth."
-                'Your response must strictly and only be a single integer "0" or "1" and no additional text.'
+                " Give a rating from 1 to 5."
+                " Respond with 1 if the answer is not correct based on the ground-truth at all."
+                " Respond with 2 if the answer is slightly correct based on the ground-truth."
+                " Respond with 3 if the answer is moderately correct based on the ground-truth."
+                " Respond with 4 if the answer is mostly correct based on the ground-truth."
+                " Respond with 5 if the answer is completely correct based on the ground-truth."
+                ' Your response must strictly and only be a single integer from "1" to "5" and no additional text.'
                 " Some Examples:"
-                ' If the answer is "yes" and the ground-truth is "no", your response should be "0".'
-                ' If the answer is "yes" and the ground-truth is "yes", your response should be "1".'
-                ' If the answer is "no" and the ground-truth is "yes", your response should be "0".'
-                ' If the answer is "there is no mention of {...} in the given context" and the ground-truth is "yes" or "no", your response should be "0".'
-                ' If the answer is "yes, the shirt is dark blue" and the ground-truth is "yes", your response should be "1".'
-                ' If the answer is "I am not sure" or "I do not know" and the ground-truth is "yes" or "no", your response should be "0".'
+                ' If none of the nouns in the answer are present in the ground-truth, the answer is not correct. Thus your response should be "1".'
+                ' If the answer is "yes" and the ground-truth is "no", your response should be "1".'
+                ' If the answer is "no" and the ground-truth is "yes", your response should be "1".'
+                ' If the answer is "I do not know" and the ground-truth is "yes", your response should be "1".'
+                ' If the answer is "there is no mention of {...} in the given context" and the ground-truth is "yes" or "no", your response should be "1".'
+                ' If the answer is "yes, the shirt is dark blue" and the ground-truth is "yes", your response should be "5".'
+                ' If the answer is "yes" and the ground-truth is "yes", your response should be "5".'
+                ' If the answer is "The sky is blue" and the ground-truth is "The sky is blue", your response should be "5".'
+                ' If the answer is "The sky is blue" and the ground-truth is "The sky is clear", your response should be "4".'
+                ' If the answer is "The sky is clear and blue" and the ground-truth is "The sky is blue", your response should be "4".'
+                ' If the answer is "The sky is somewhat blue" and the ground-truth is "The sky is blue", your response should be "3".'
+                ' If the answer is "The sky is blue with some clouds" and the ground-truth is "The sky is blue", your response should be "3".'
+                ' If the answer is "The sky is light blue" and the ground-truth is "The sky is blue", your response should be "2".'
+                ' If the answer is "The sky is blueish" and the ground-truth is "The sky is blue", your response should be "2".'
+                f'Here are the Answer: "{answer}" and the ground-truth: "{ground_truth}".'
             ),
-        },
-        {
-            "role": "user",
-            "content": f'Here are the  Answer: "{answer}" and the ground-truth: "{ground_truth}".',
         },
     ]
     result = evalSendToLLM(messages)
-    print(f"A: {answer}")
-    print(f"GT: {ground_truth}")
-    print(f"Result: {result}")
-    print("----------")
+    # print(f"A: {answer}")
+    # print(f"GT: {ground_truth}")
+    # print(f"Result: {result}")
+    # print("----------")
 
     return result
 
 
-def semantic_similarity(candidate, reference, scorer=scorer):
+# Function to calculate BERTScore semantic similarity
+def semantic_similarity(candidate, reference, scorer=None):
     # Example texts
     # BERTScore calculation
-    P, R, F1 = scorer.score([candidate], [reference])
+    P, R, F1 = scorer.score([candidate.lower()], [reference.lower()])
     # print(f"BERTScore Precision: {P.mean():.4f}, Recall: {R.mean():.4f}, F1: {F1.mean():.4f}")
-    return P.mean()
+    return R.mean()
 
 
-def evaluate(rag_elements, method=None, given_queries=None, evaluator="sem_similarity"):
-    # Select evalaution method to run
-    if method is None or method not in [
-        "context_relevance",
-        "faithfulness",
-        "answer_relevance",
-        "correctness",
-        "all",
-    ]:
-        print("No evaluation method selected")
-        return
-    # Print choices
-    # print(f"Running evaluation for method: {method}")
-    # print(f"Using evaluator: {evaluator}")
+# Function to calculate ROUGE-N (ROUGE-1, ROUGE-2)
+def ROUGE(candidate, reference, n=1):
+    # Calcuate ROGUE Score between candidate and reference
+    # Helper function to tokenize sentences into words
+    def tokenize(sentence):
+        return re.findall(r"\w+", sentence.lower())
 
-    if method == "context_relevance":
-        if given_queries is not None:
-            # Bypass rag pipeline run and just evaluate context relevance
-            # betweeen given_queries and contexts
-            scores = evaluate_context_relevance(given_queries, contexts=None)
-        else:
-            contexts = [element["contexts"] for element in rag_elements]
-            queries = [element["question"] for element in rag_elements]
-            contexts_ids = [element["contexts_ids"] for element in rag_elements]
-            scores = evaluate_context_relevance(
-                queries, contexts, contexts_ids=contexts_ids, evaluator=evaluator
-            )
-        return scores
+    reference = tokenize(reference)
+    candidate = tokenize(candidate)
+    ref_ngrams = [" ".join(reference[i : i + n]) for i in range(len(reference) - n + 1)]
+    cand_ngrams = [
+        " ".join(candidate[i : i + n]) for i in range(len(candidate) - n + 1)
+    ]
 
-    if method == "faithfulness":
-        answers = [element["answer"] for element in rag_elements]
-        contexts = [element["contexts"] for element in rag_elements]
-        contexts_ids = [element["contexts_ids"] for element in rag_elements]
-        scores = evaluate_faithfulness(
-            answers,
-            contexts,
-            contexts_ids=contexts_ids,
-            evaluator=evaluator,
-        )
-        return scores
+    ref_count = Counter(ref_ngrams)
+    cand_count = Counter(cand_ngrams)
 
-    if method == "answer_relevance":
-        queries = [element["question"] for element in rag_elements]
-        answers = [element["answer"] for element in rag_elements]
-        scores = evaluate_answer_relevance(queries, answers, evaluator)
-        return scores
+    overlap = sum((cand_count & ref_count).values())
+    total_ref = sum(ref_count.values())
+    # total_cand = sum(cand_count.values())
 
-    if method == "correctness":
-        answers = [element["answer"] for element in rag_elements]
-        ground_truths = [element["ground_truth"] for element in rag_elements]
-        scores = evaluate_correctness(answers, ground_truths, evaluator)
-        return scores
+    recall = overlap / total_ref if total_ref > 0 else 0
+    # precision = overlap / total_cand if total_cand > 0 else 0
+    # f1_score = (
+    #    2 * recall * precision / (recall + precision) if (recall + precision) > 0 else 0
+    # )
 
-    if method == "all":
-        queries = [element["question"] for element in rag_elements]
-        contexts = [element["contexts"] for element in rag_elements]
-        contexts_ids = [element["contexts_ids"] for element in rag_elements]
-
-        answers = [element["answer"] for element in rag_elements]
-        ground_truths = [element["ground_truth"] for element in rag_elements]
-
-        cr_scores = evaluate_context_relevance(
-            queries, contexts, evaluator=evaluator, contexts_ids=contexts_ids
-        )
-
-        f_scores = evaluate_faithfulness(
-            answers, contexts, evaluator=evaluator, contexts_ids=contexts_ids
-        )
-        ar_scores = evaluate_answer_relevance(queries, answers, evaluator)
-        c_scores = evaluate_correctness(answers, ground_truths, evaluator)
-
-        return {
-            "context_relevance": cr_scores,
-            "faithfulness": f_scores,
-            "answer_relevance": ar_scores,
-            "correctness": c_scores,
-        }
-
-
-def eval_context_goldPassages(rag_elements, goldPassages):
-    # Evaluate context relevance with goldPassages
-    # contexts = [element["contexts"] for element in rag_elements]
-    queries = [element["question"] for element in rag_elements]
-    contexts_ids = [element["contexts_ids"] for element in rag_elements]
-
-    matches = []
-    for query, context_ids, goldPs in zip(queries, contexts_ids, goldPassages):
-        print(f"Context_ids: {context_ids}")
-        print(f"goldPasssageContexts: {goldPs}")
-
-        # Count number of matches in context_ids and goldPs
-        # Beware, that the number of elements in goldPs per query varies.
-        set_goldPs = set(goldPs)
-        set_context_ids = set(context_ids)
-        number_matches = sum(1 for element in set_context_ids if element in set_goldPs)
-        print(f"Query: {query}")
-        print(f"Number of matches: {number_matches}")
-        print(f"Number of goldPs: {len(goldPs)}")
-        matches.append([number_matches, len(goldPs)])
-
-    return matches
+    return recall
 
 
 def evalSendToLLM(
@@ -440,3 +527,27 @@ def evalSendToLLM(
     else:
         result = report
     return result
+
+
+def eval_context_goldPassages(rag_elements, goldPassages):
+    # Evaluate context relevance with goldPassages
+    # contexts = [element["contexts"] for element in rag_elements]
+    queries = [element["question"] for element in rag_elements]
+    contexts_ids = [element["contexts_ids"] for element in rag_elements]
+
+    matches = []
+    for query, context_ids, goldPs in zip(queries, contexts_ids, goldPassages):
+        print(f"Context_ids: {context_ids}")
+        print(f"goldPasssageContexts: {goldPs}")
+
+        # Count number of matches in context_ids and goldPs
+        # Beware, that the number of elements in goldPs per query varies.
+        set_goldPs = set(goldPs)
+        set_context_ids = set(context_ids)
+        number_matches = sum(1 for element in set_context_ids if element in set_goldPs)
+        print(f"Query: {query}")
+        print(f"Number of matches: {number_matches}")
+        print(f"Number of goldPs: {len(goldPs)}")
+        matches.append([number_matches, len(goldPs)])
+
+    return matches
