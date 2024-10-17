@@ -146,7 +146,7 @@ Evaluate the results
 ```python
 methods = "context_relevance", "answer_relevance", "faithfulness", "correctness", "all"
 
-evaluator = "sem_similarity", "llm_judge"
+evaluator = "sem_similarity", "llm_judge", "ROUGE-1"
 scores = evaluate(method="all", evaluator="sem_similarity")
 
 print(scores)
@@ -171,6 +171,13 @@ corpus_list, queries, ground_truths = datasetHelpers.loadMiniWiki()
 
 
 ## Other useful methods
+
+Set costum prompt
+```python
+userPrompt = "Give an answer using simple language."
+# userPrompt = "Verwende wissenschaftliche Sprache für deine Antwort."
+pipe.setCostumPrompt(userPrompt)
+```
 
 
 Get stats of a specific index:

@@ -1,10 +1,10 @@
 # Test of rag evaluation
 # Imports
 import concurrent.futures
+import os
 import sys
 import time
 from functools import partial
-from pprint import pprint
 
 sys.path.append("./dev/")
 sys.path.append("./src/")
@@ -16,16 +16,25 @@ from csv_helpers import (
 )
 from drivers import eval_single_pipe_result
 
+# Dataset
+dataset = "miniWiki"  # miniBiosQA, miniWiki
+# Define eval params
+method = (
+    "quExp"  # Which parameter setting to evaluate, stored by folder name, pool = all
+)
+# Define evaluator
+evaluator = "ROUGE-1"  # Which evaluator to use
+select = "correctness"  # Which selection method to use, either "correctness", "cr", "ar", "faithfulness", "all"
+n_worker = 4
+
 # Get pipe results file names
-pipe_results_dir = "./parallel_100_rows_pipe/miniBiosQA"
+pipe_results_dir = f"./parallel_100_rows_pipe/{dataset}/{method}/"
 pipe_results_file_names = get_csv_files_from_dir(pipe_results_dir)
 # Define directory for eval results
-eval_results_dir = "./parallel_100_rows_eval/miniBiosQA"
+eval_results_dir = f"./parallel_100_rows_eval/{dataset}/{method}/{evaluator}/"
+# Create the directory if it does not exist
+os.makedirs(eval_results_dir, exist_ok=True)
 
-# Define eval params
-method = "all"
-evaluator = "llm_judge"
-n_worker = 8
 
 # Time the evaluation
 start = time.time()
@@ -36,7 +45,7 @@ partial_helper_vary_input_file = partial(
     eval_single_pipe_result,  # Function to call for single pipe result evaluation
     pipe_results_dir=pipe_results_dir,
     eval_results_dir=eval_results_dir,
-    method=method,
+    select=select,
     evaluator=evaluator,
     slice_for_dev=100,
 )
@@ -48,13 +57,11 @@ logging.basicConfig(
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=n_worker) as executor:
     futures = []
-    for pipe_results_file_name in pipe_results_file_names[:]:  # Slice for dev
-        if "quExp1" in pipe_results_file_name:
-            logging.info(f"Submitting task for {pipe_results_file_name}")
-            future = executor.submit(
-                partial_helper_vary_input_file, pipe_results_file_name
-            )
-            futures.append(future)
+    for pipe_results_file_name in pipe_results_file_names[:]:
+        # if "numRefLim5" in pipe_results_file_name:
+        logging.info(f"Submitting task for {pipe_results_file_name}")
+        future = executor.submit(partial_helper_vary_input_file, pipe_results_file_name)
+        futures.append(future)
 
     for future in concurrent.futures.as_completed(futures):
         try:

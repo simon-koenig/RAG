@@ -222,9 +222,10 @@ def write_eval_results_to_csv(
     eval_results,
     eval_results_dir,
     pipe_results_file,
-    method,
+    select,
     evaluator,
     slice_for_dev=None,
+    write_context=False,
 ):
     ##
     ## Instead of writing correctnos to a seperate csv file. Add it to the same csv file
@@ -232,10 +233,12 @@ def write_eval_results_to_csv(
     ##
 
     # Get the pipe results file name
-    pipe_results_file_name = os.path.basename(pipe_results_file).split(".")[0]
+    print(f"Pipe results file: {pipe_results_file}")
+    pipe_results_file_name = os.path.basename(pipe_results_file).split(".csv")[0]
+    print(f"Pipe results file name: {pipe_results_file_name}")
     # Define the file paths
     eval_results_file = (
-        f"{eval_results_dir}/{pipe_results_file_name}{method}_{evaluator}.csv"
+        f"{eval_results_dir}/{pipe_results_file_name}{select}_{evaluator}.csv"
     )
     # Print for debugging
     # print(f"Eval results file name: {eval_results_file}")
@@ -249,6 +252,11 @@ def write_eval_results_to_csv(
     df["Faithfulness"] = None
     df["AR"] = None
 
+    # Skip the contexts column for a slim csv file
+    if write_context is False:
+        # Drop the contexts column
+        df = df.drop(columns=["contexts"])
+
     # Get the results for each evaluation metric
     cr_results = eval_results.get("context_relevance", None)
     faithfulness_results = eval_results.get("faithfulness", None)
@@ -257,6 +265,18 @@ def write_eval_results_to_csv(
 
     # print(f"CR Results: {cr_results}")
     # print(f"Cr results type: {type(cr_results)}")
+    # Check if the results are not None, if they are, set them to a default value
+    if cr_results is None:
+        cr_results = [None] * len(df)
+    if faithfulness_results is None:
+        faithfulness_results = [None] * len(df)
+    if ar_results is None:
+        ar_results = [None] * len(df)
+    if correct_results is None:
+        correct_results = [None] * len(df)
+
+    # Update the DataFrame with the evaluation results
+
     df.loc[: len(correct_results) - 1, "Correct"] = correct_results
     df.loc[: len(ar_results) - 1, "AR"] = ar_results
 
@@ -266,8 +286,14 @@ def write_eval_results_to_csv(
     # Pad the cr_results to the length of df
     # Pad each sublist in cr_results to ensure they all have the same length as the DataFrame
     for i, (rowCR, rowFaith) in enumerate(zip(cr_results, faithfulness_results)):
-        df.loc[i, "CR"] = str(rowCR)
-        df.loc[i, "Faithfulness"] = str(rowFaith)
+        if rowCR is not None:
+            df.loc[i, "CR"] = str(rowCR)
+        if rowCR is None:
+            df.loc[i, "CR"] = rowCR
+        if rowFaith is not None:
+            df.loc[i, "Faithfulness"] = str(rowFaith)
+        if rowFaith is None:
+            df.loc[i, "Faithfulness"] = rowFaith
 
     # Save the updated DataFrame back to a CSV file
     df.to_csv(eval_results_file, index=False)

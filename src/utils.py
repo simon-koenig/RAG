@@ -77,3 +77,34 @@ def chunkText(text, method="recursive", chunk_size=512, chunk_overlap=128):
         splitted_text = splitter.split_text(text)
 
     return [chunk for chunk in splitted_text]
+
+
+def get_reranked_docs(query, docs, reranker_endpoint=RERANKER_ENDPOINT):
+    """
+    Reranks the documents based on the query.
+
+    Args:
+        query (str): The query.
+        docs (list): A list of documents.
+        reranker_endpoint (str, optional): The reranker endpoint. Defaults to RERANKER_ENDPOINT.
+
+    Returns:
+        list: A list of reranked documents.
+    """
+    data = {
+        "query": query,
+        "docs": docs,
+        "limit": len(docs),
+    }
+
+    response = requests.post(reranker_endpoint, json=data)
+    reranked_docs = response.json()
+    return reranked_docs
+
+
+def clean_sentence(sentence):
+    sentence = sentence.replace("\n", " ")
+    sentence = sentence.replace("\t", " ")
+    sentence = sentence.replace("\r", " ")
+    sentence = sentence.strip()
+    return sentence

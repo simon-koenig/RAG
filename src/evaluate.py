@@ -1,6 +1,7 @@
 # Imports
 import re
 from collections import Counter
+from pprint import pprint
 
 import numpy as np
 import requests
@@ -11,72 +12,75 @@ from tqdm import tqdm
 
 # Constants
 LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "llama3.1:latest"
+LLM_NAME = "llama3.1:70b"
 
 
-def evaluate(rag_elements, method=None, given_queries=None, evaluator="sem_similarity"):
-    if evaluator == "sem_similarity":
-        scorer = BERTScorer(model_type="roberta-base")
-    # Select evalaution method to run
-    if method is None or method not in [
+def evaluate(rag_elements, select=None, given_queries=None, evaluator="ROUGE-1"):
+    scorer = None
+    # Select evalaution select to run
+    if select is None or select not in [
         "context_relevance",
         "faithfulness",
         "answer_relevance",
         "correctness",
         "all",
     ]:
-        print("No evaluation method selected")
+        print("No evaluation select selected")
         return
     # Print choices
-    # print(f"Running evaluation for method: {method}")
+    # print(f"Running evaluation for select: {select}")
     # print(f"Using evaluator: {evaluator}")
 
-    if method == "context_relevance":
+    if select == "context_relevance":
         if given_queries is not None:
             # Bypass rag pipeline run and just evaluate context relevance
             # betweeen given_queries and contexts
-            scores = evaluate_context_relevance(
+            cr_scores = evaluate_context_relevance(
                 given_queries, contexts=None, evaluator=evaluator, scorer=scorer
             )
         else:
             contexts = [element["contexts"] for element in rag_elements]
             queries = [element["question"] for element in rag_elements]
             contexts_ids = [element["contexts_ids"] for element in rag_elements]
-            scores = evaluate_context_relevance(
+            cr_scores = evaluate_context_relevance(
                 queries,
                 contexts,
                 contexts_ids=contexts_ids,
                 evaluator=evaluator,
                 scorer=scorer,
             )
-        return scores
+        return {
+            "context_relevance": cr_scores,
+        }
 
-    if method == "faithfulness":
+    if select == "faithfulness":
         answers = [element["answer"] for element in rag_elements]
         contexts = [element["contexts"] for element in rag_elements]
         contexts_ids = [element["contexts_ids"] for element in rag_elements]
-        scores = evaluate_faithfulness(
+        f_scores = evaluate_faithfulness(
             answers,
             contexts,
             contexts_ids=contexts_ids,
             evaluator=evaluator,
             scorer=scorer,
         )
-        return scores
+        return {
+            "faithfulness": f_scores,
+        }
 
-    if method == "answer_relevance":
+    if select == "answer_relevance":
         queries = [element["question"] for element in rag_elements]
         answers = [element["answer"] for element in rag_elements]
-        scores = evaluate_answer_relevance(queries, answers, evaluator)
-        return scores
+        ar_scores = evaluate_answer_relevance(queries, answers, evaluator, scorer)
+        return {"answer_relevance": ar_scores}
 
-    if method == "correctness":
+    if select == "correctness":
         answers = [element["answer"] for element in rag_elements]
         ground_truths = [element["ground_truth"] for element in rag_elements]
-        scores = evaluate_correctness(answers, ground_truths, evaluator, scorer)
-        return scores
+        c_scores = evaluate_correctness(answers, ground_truths, evaluator, scorer)
+        return {"correctness": c_scores}
 
-    if method == "all":
+    if select == "all":
         queries = [element["question"] for element in rag_elements]
         contexts = [element["contexts"] for element in rag_elements]
         contexts_ids = [element["contexts_ids"] for element in rag_elements]
@@ -99,8 +103,18 @@ def evaluate(rag_elements, method=None, given_queries=None, evaluator="sem_simil
             contexts_ids=contexts_ids,
             scorer=scorer,
         )
-        ar_scores = evaluate_answer_relevance(queries, answers, evaluator, scorer)
-        c_scores = evaluate_correctness(answers, ground_truths, evaluator, scorer)
+        ar_scores = evaluate_answer_relevance(
+            queries,
+            answers,
+            evaluator=evaluator,
+            scorer=scorer,
+        )
+        c_scores = evaluate_correctness(
+            answers,
+            ground_truths,
+            evaluator=evaluator,
+            scorer=scorer,
+        )
 
         return {
             "context_relevance": cr_scores,
@@ -115,7 +129,7 @@ def evaluate_context_relevance(
     contexts=None,
     contexts_ids=None,
     goldPassages=None,
-    evaluator="sem_similarity",
+    evaluator="sem-similarity",
     vectorDB=None,
     scorer=None,
 ):
@@ -155,11 +169,11 @@ def evaluate_context_relevance(
             # print(f"Context: {single_context}")
 
             # Evaluate context relevance based on chosen evaluator
-            if evaluator == "sem_similarity":
+            if evaluator == "sem-similarity":
                 measure = semantic_similarity(single_context, query, scorer)
-            elif evaluator == "llm_judge":
-                measure = llm_binary_context_relevance(single_context, query)
-            elif evaluator == "ROUGE-2":
+            elif evaluator == "llm-judge":
+                measure = llm_context_relevance(single_context, query)
+            elif evaluator == "ROUGE-1":
                 measure = ROUGE(single_context, query)
             # Convert measure to float and append to list
             # print(f"Measure: {measure}")
@@ -179,7 +193,7 @@ def evaluate_context_relevance(
     return scores
 
 
-def llm_binary_context_relevance(context, query):
+def llm_context_relevance(context, query):
     messages = [
         {
             "role": "user",
@@ -216,7 +230,7 @@ def llm_binary_context_relevance(context, query):
 
 
 def evaluate_faithfulness(
-    answers, contexts, evaluator="sem_similarity", contexts_ids=None, scorer=None
+    answers, contexts, evaluator="sem-similarity", contexts_ids=None, scorer=None
 ):
     # Type checking
     if not isinstance(answers, list):
@@ -235,11 +249,11 @@ def evaluate_faithfulness(
         for single_context in context:
             # Insert here evaluation measure of retrieved context
             # print(f"Context: {single_context}")  #
-            if evaluator == "sem_similarity":
+            if evaluator == "sem-similarity":
                 measure = semantic_similarity(answer, single_context, scorer)
-            elif evaluator == "llm_judge":
-                measure = llm_binary_faithfulness(answer, single_context)
-            elif evaluator == "ROUGE-2":
+            elif evaluator == "llm-judge":
+                measure = llm_faithfulness(answer, single_context)
+            elif evaluator == "ROUGE-1":
                 measure = ROUGE(answer, single_context)
 
             measurements.append(round(float(measure), 3))
@@ -251,7 +265,7 @@ def evaluate_faithfulness(
     return scores
 
 
-def llm_binary_faithfulness(context, answer):
+def llm_faithfulness(context, answer):
     messages = [
         {
             "role": "user",
@@ -291,7 +305,7 @@ def llm_binary_faithfulness(context, answer):
 
 
 def evaluate_answer_relevance(
-    queries, answers, evaluator="sem_similarity", scorer=None
+    queries, answers, evaluator="sem-similarity", scorer=None
 ):
     # Type checking
     if not isinstance(answers, list):
@@ -312,18 +326,18 @@ def evaluate_answer_relevance(
         # print(f"Answer: {answer}")
         # print(f"Query: {query}")
         # Evaluate context relevance based on chosen evaluator
-        if evaluator == "sem_similarity":
+        if evaluator == "sem-similarity":
             measure = semantic_similarity(answer, query, scorer=scorer)
-        elif evaluator == "llm_judge":
-            measure = llm_binary_answer_relevance(answer, query)
-        elif evaluator == "ROUGE-2":
+        elif evaluator == "llm-judge":
+            measure = llm_answer_relevance(answer, query)
+        elif evaluator == "ROUGE-1":
             measure = ROUGE(answer, query)
         # Convert measure to float and append to list
         scores[i] = round(float(measure), 3)
     return scores
 
 
-def llm_binary_answer_relevance(answer, query):
+def llm_answer_relevance(answer, query):
     messages = [
         {
             "role": "user",
@@ -362,7 +376,7 @@ def llm_binary_answer_relevance(answer, query):
 
 
 def evaluate_correctness(
-    answers, ground_truths, evaluator="sem_similarity", scorer=None
+    answers, ground_truths, evaluator="sem-similarity", scorer=None
 ):
     # Type checking
     if not isinstance(answers, list):
@@ -382,22 +396,21 @@ def evaluate_correctness(
     ):
         # print(f"Answer: {answer}")
         # print(f"Ground truth: {ground_truth}")
-        if evaluator == "sem_similarity":
+        if evaluator == "sem-similarity":
             measure = semantic_similarity(answer, ground_truth, scorer=scorer)
-        elif evaluator == "llm_judge":
-            measure = llm_binary_correctness(answer, ground_truth)
-        elif evaluator == "ROUGE-2":
+        elif evaluator == "llm-judge":
+            measure = llm_correctness(answer, ground_truth)
+        elif evaluator == "ROUGE-1":
             measure = ROUGE(answer, ground_truth)
-
         scores[i] = round(float(measure), 3)
     # print(f" Scores: {scores}")
     return scores
 
 
-def llm_binary_correctness(answer, ground_truth):
+def llm_correctness(answer, ground_truth):
     messages = [
         {
-            "role": "system",
+            "role": "user",
             "content": (
                 "Given the following answer and ground-truth,"
                 " Give a rating from 1 to 5."
@@ -411,7 +424,7 @@ def llm_binary_correctness(answer, ground_truth):
                 ' If none of the nouns in the answer are present in the ground-truth, the answer is not correct. Thus your response should be "1".'
                 ' If the answer is "yes" and the ground-truth is "no", your response should be "1".'
                 ' If the answer is "no" and the ground-truth is "yes", your response should be "1".'
-                ' If the answer is "I do not know" and the ground-truth is "yes", your response should be "1".'
+                ' If the answer is "I do not know", your response should be "1".'
                 ' If the answer is "there is no mention of {...} in the given context" and the ground-truth is "yes" or "no", your response should be "1".'
                 ' If the answer is "yes, the shirt is dark blue" and the ground-truth is "yes", your response should be "5".'
                 ' If the answer is "yes" and the ground-truth is "yes", your response should be "5".'
@@ -444,7 +457,7 @@ def semantic_similarity(candidate, reference, scorer=None):
     return R.mean()
 
 
-# Function to calculate ROUGE-N (ROUGE-1, ROUGE-2)
+# Function to calculate ROUGE-N (ROUGE-1, ROUGE-1)
 def ROUGE(candidate, reference, n=1):
     # Calcuate ROGUE Score between candidate and reference
     # Helper function to tokenize sentences into words
@@ -463,7 +476,7 @@ def ROUGE(candidate, reference, n=1):
 
     overlap = sum((cand_count & ref_count).values())
     total_ref = sum(ref_count.values())
-    # total_cand = sum(cand_count.values())
+    total_cand = sum(cand_count.values())
 
     recall = overlap / total_ref if total_ref > 0 else 0
     # precision = overlap / total_cand if total_cand > 0 else 0
@@ -518,7 +531,9 @@ def evalSendToLLM(
         return
     # print("Received response...")
     # if reponse is 200, extract the generated response as json object
+
     report = response.json()
+
     if "choices" in report:
         if len(report["choices"]) > 0:  # Always take the first choice.
             result = report["choices"][0]["message"]["content"]

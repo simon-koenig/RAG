@@ -2,6 +2,8 @@
 
 # from pprint import pprint
 
+from pprint import pprint
+
 import marqo
 import requests
 from tqdm import tqdm
@@ -130,7 +132,7 @@ class VectorStore:
         """
         try:
             # now remove the marqo index
-            self.mq.delete_index(indexName)
+            self.mq.delete_index(indexName.lower())
             print(f"Successfully deleted Index: {indexName}")
         except:
             print("Unable to delete: " + indexName)
@@ -341,6 +343,8 @@ class VectorStore:
         # Modify filter string to include language
         # filterstring = f"lang:{lang}"  # Add language to filter string
         # print(f"Filterstring: {filterstring}")
+        # Sanitize query for marqo search. Remove quotes inside query
+        query = query.replace('"', " ")
 
         # value = query_expansion in (False, 0, 1)
         # print("Value of query expansion: ", value)
@@ -370,7 +374,7 @@ class VectorStore:
 
         # If context expansion is needed
         if query_expansion >= 2:
-            print("Query expansion is needed.")
+            # print("Query expansion is needed.")
             # Send data to the LLM for context expansion to retrieve more relevant contexts
             # Query expansion demands LLM_URL and LLM_NAME, otherwise not possible
             if (LLM_URL or LLM_NAME) is False:
@@ -390,23 +394,26 @@ class VectorStore:
                 },
                 {
                     "role": "user",
-                    "content": f"Expand the following query:\n\n{query}\n\n to {query_expansion} relevant queries which are close in meaning but use different wording."
+                    "content": f"Expand the following query:\n\n{query}\n\n to {query_expansion} relevant queries which are close in meaning but are simplified."
+                    "Focus on the main topic of the query and avoid unnecessary details."
+                    "Focus on nouns and verbs in the query and expand them."
+                    "Use the same python list structure in your answer as in the examples below. The first query in the list should be the original query."
                     "Here are some examples:"
-                    '1. Query: "What is the capital of France?"'
-                    'Example expansion: ["Big cities in France", "Capitals in Europe", What is the capital of France?, "What is the capital of France?"]'
+                    '1. Query: "What is the capital of Norway?"'
+                    'Example expansion if number of queries needed is 2 : ["What is the capital of Norway", "City Norway"]'
                     '2. Query: "Drugs for cancer treatment?"'
-                    'Example expansions: ["Cure against cancer", "Medications for cancer", "Drugs for cancer treatment?"]'
+                    'Example expansion if number of queries needed is 3: ["Drugs for cancer treatment?", "Cancer drugs", "Health anti-cancer drugs"]'
                     '3. "What positions are there in a football team?"'
-                    'Example expansions: [Football team roles, "Positions in soccer", "What positions are there in a football team?"]'
-                    "Use the same list structure in your answer as in the examples above. The last query in the list should be the original query."
-                    "Structure your response as a list of strings, where each string is a query. The answer should be just this list and nothing else.",
+                    'Example expansion if number of queries needed is 4: ["What positions are there in a football team?", "Football team positions", "Football team", "Rules in football"]   '
+                    f"Structure your response as a python list of strings, where each string is a query. The length of the python list is {query_expansion}."
+                    "The answer should be just this list and nothing else.",
                 },
             ]
             data = {
                 "model": LLM_NAME,
                 "messages": messages,
                 "max_tokens": 100,
-                "temperature": 0.7,
+                "temperature": 0.3,
             }
 
             # Send the request
@@ -433,14 +440,16 @@ class VectorStore:
                 )
 
             # Print or use the list of queries
-            # print(extended_queries)
-            # print(f"Type of extended queries: {type(extended_queries)}")
+            print(f"extended_queries: {extended_queries}")
+            print(f"Type of extended queries: {type(extended_queries)}")
+            print(f"Length of extended queries: {len(extended_queries)}")
 
             # Merge search results for all queries in the extended_queries list
             response_sem = []
             response_lex = []
             # Now we have the extended queries, we can search for them in the index
             for query in extended_queries:
+                print(f"Current Query: {query}")
                 # Semantic Search
                 response_sem_temp = self.mq.index(self.indexName).search(
                     q=query,  # Query string
@@ -473,11 +482,15 @@ class VectorStore:
         plain_text_results = []
 
         # Get initial search results
+        # Save top lex and top sem results and always include them in the final background
+        top_sem_result = response_sem[0]
+        top_lex_result = response_lex[0]
+
         # print(f" Semantic Search Results: {response_sem}")
         # print(f" Lexical Search Results: {response_lex}")
-        # Fusing the lists alternately
+        # Fusing the lists alternately. Leave out the first element since it is already included
         full_results = [
-            item for pair in zip(response_lex, response_sem) for item in pair
+            item for pair in zip(response_lex[1:], response_sem[1:]) for item in pair
         ]
         # print("Size of full results: ", len(full_results))
         # Adding the remaining elements (if results are not the same length)
@@ -504,7 +517,7 @@ class VectorStore:
                 ## Context Expansion
                 ##
 
-                if prepost_context:
+                if prepost_context is True:
                     pre_context = hit["pre_context"]
                     post_context = hit["post_context"]
                     context = f" Context: {pre_context} {text} {post_context} "  # Context expansion
@@ -521,6 +534,9 @@ class VectorStore:
                 # print(f" Size of context ids: {len(context_ids)}")
 
         if rerank is True:
+            # Sanitize query for reranker
+            # Handle qutoes inside query
+            # print(f"Current Question: {query}")
             # Rerank the results using the semantic reranker
             headers = {
                 "Content-Type": "application/json",
@@ -528,7 +544,9 @@ class VectorStore:
             data = {
                 "query": query,
                 "raw_results": plain_text_results,
-                "num_results": search_ref_lex + search_ref_sem,  # Rank all results
+                "num_results": len(response_lex)
+                + len(response_sem)
+                - 2,  # Exclude the top lex and top sem results
             }
 
             # Get response from reranker
@@ -543,12 +561,17 @@ class VectorStore:
             reranked_results = response.json()
             # print(f"Data: {data}")
             # print(f"Reranked results: {reranked_results}")
-            # Iterate over reranked results
+            # Iterate over reranked result
             for reranked_res in reranked_results:
+                # pprint(f" result index: {reranked_res['result_index']}")
+                # pprint(f" result score: {reranked_res['score']}")
+                # pprint(f"result rank: {reranked_res['rank']}")
+
                 current_index = reranked_res["result_index"]
                 # print(f"Reranked index: {current_index}")
                 # Get current highest ranked context
                 hit = full_results[current_index]
+                # pprint(f"Chunk ID:  {hit['chunk_id']}")
                 # If needed, augment context with title, link and score
                 text = hit["text"]
                 # title = hit["title"]
@@ -576,22 +599,23 @@ class VectorStore:
 
         if rerank == "rrf":
             # Rerank the results using RRF
-
+            # sort accoding to _id since chunk_id is not unique. Some vector embedddings can have the same chunk_id.
             tensor_results = [
-                {"rank": i + 1, "id": response["chunk_id"]}
-                for i, response in enumerate(response_sem)
+                {"rank": i + 1, "id": response["_id"]}
+                for i, response in enumerate(response_sem[1:])
             ]
+
             lex_results = [
-                {"rank": i + 1, "id": response["chunk_id"]}
-                for i, response in enumerate(response_lex)
+                {"rank": i + 1, "id": response["_id"]}
+                for i, response in enumerate(response_lex[1:])
             ]
+
             # for i in range(len(tensor_results)):
             #    pprint(tensor_results[i])
             #    pprint(lex_results[i])
 
             # Step 1: Fill set with unique ids using set comprehension
             unique_ids = set(dic["id"] for dic in tensor_results + lex_results)
-
             # Step 2: Create a new dictionary with all values set to 0
             rrf_scores = {key: 0 for key in unique_ids}
 
@@ -606,7 +630,6 @@ class VectorStore:
                 ID = result["id"]
                 rank = result["rank"]
                 rrf_scores[ID] += 1 / (rank + 60)
-
             # Step 4: sort the search results by the rrf scores
             sorted_ids = [
                 id_
@@ -614,10 +637,11 @@ class VectorStore:
                     rrf_scores.items(), key=lambda x: x[1], reverse=True
                 )
             ]
+
             # pprint(sorted_ids)
 
             # Create a mapping from ID to full_results
-            id_to_dict = {d["chunk_id"]: d for d in full_results}
+            id_to_dict = {d["_id"]: d for d in full_results}
 
             # Sort the list of dictionaries according to sorted_ids
             sorted_hits = [id_to_dict[id_] for id_ in sorted_ids]
@@ -650,34 +674,37 @@ class VectorStore:
                 Id = hit["chunk_id"]
                 context_ids.append(Id)
 
-        # Remove duplicates from contexts and context_ids
-        unique_contexts = []
-        unique_context_ids = []
-        for i, context_id in enumerate(context_ids):
-            if context_id not in unique_context_ids:
-                unique_contexts.append(contexts[i])
-                unique_context_ids.append(context_id)
         # Return top num_ref_lim contexts and their ids
+        # Add top sem and top lex contexts to the contexts and context_ids
+        if prepost_context is True:
+            top_sem_context = f" Context: {top_sem_result['pre_context']} {top_sem_result['text']} {top_sem_result['post_context']} "
+            top_lex_context = f" Context: {top_lex_result['pre_context']} {top_lex_result['text']} {top_lex_result['post_context']} "
 
-        unique_contexts = unique_contexts[:num_ref_lim]
+        elif prepost_context is False:
+            top_sem_context = f" Context: {top_sem_result['text']} "
+            top_lex_context = f" Context: {top_lex_result['text']} "
+
+        contexts = [top_sem_context, top_lex_context] + contexts
+        contexts = contexts[:num_ref_lim]
         # print(f"Contxt ids before slicing: {context_ids}")
-        unique_context_ids = unique_context_ids[:num_ref_lim]
+
+        context_ids = [
+            top_sem_result["chunk_id"],
+            top_lex_result["chunk_id"],
+        ] + context_ids
+        context_ids = context_ids[:num_ref_lim]
 
         # Add context to background
-        # Use only the top num_ref_lim unique_contexts for background
+        # Use only the top num_ref_lim contexts for background
         # If descending order is needed, set reverse to False
         if background_reversed is False:
-            background = " ".join(
-                unique_contexts[: min(num_ref_lim, len(unique_contexts))]
-            )
+            background = " ".join(contexts[: min(num_ref_lim, len(contexts))])
 
         # If ascending order is needed, set reverse to True
         if background_reversed is True:
-            background = " ".join(
-                reversed(unique_contexts[: min(num_ref_lim, len(unique_contexts))])
-            )
+            background = " ".join(reversed(contexts[: min(num_ref_lim, len(contexts))]))
 
-        return background, unique_contexts, unique_context_ids
+        return background, contexts, context_ids
 
     def getIndexes(self):
         """

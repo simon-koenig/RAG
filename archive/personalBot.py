@@ -55,21 +55,9 @@ def word_count(text):
 
 
 # Set parameters
-cfg = get_config("config.ini")
-INPUT_DIRECTORY = cfg["DEFAULT"]["INPUT_DIRECTORY"]
-OUTPUT_DIRECTORY = cfg["DEFAULT"]["OUTPUT_DIRECTORY"]
-MARQO_ENDPOINT = cfg["DEFAULT"]["MARQO_ENDPOINT"]
-GPT4ALLMODEL = cfg["DEFAULT"]["GPT4ALLMODEL"]
-GPT4ALLMODELPATH = cfg["DEFAULT"]["GPT4ALLMODELPATH"]
-USEOPENAI = cfg["OPENAI"]["USEOPENAI"]
-APIKEY = cfg["OPENAI"]["APIKEY"]
-ENDPOINT = cfg["OPENAI"]["ENDPOINT"]
-MAXTOKENS = int(cfg["OPENAI"]["MAXTOKENS"])
-MINIO_ENDPOINT = cfg["MINIO"]["MINIO_ENDPOINT"]
-MINIO_ACCESS_KEY = cfg["MINIO"]["MINIO_ACCESS_KEY"]
-MINIO_SECRET_KEY = cfg["MINIO"]["MINIO_SECRET_KEY"]
 
-OPENAIMODEL = "mixtral"  # get_model(ENDPOINT)
+ENDPOINT = "http://10.103.251.104:8040/v1"
+OPENAIMODEL = "llama3.1:70b"  # get_model(ENDPOINT)
 
 
 ##
@@ -86,7 +74,7 @@ with st.sidebar:
     index_placeholder = st.empty()
 
 
-st.title("Simons Chatbot ")
+st.title("Simons Assistant")
 st.caption(
     " 🕹️ Try me! But be careful, my answers might be incorrect and I can give you no warranties! 🕹️"
 )
@@ -115,17 +103,29 @@ if query := st.chat_input():
     with st.spinner("Generating response..."):
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {APIKEY}",
+            "Authorization": "Bearer N/A",
         }
         data = {
             "model": OPENAIMODEL,
             "messages": messages,
+            "max_tokens": 1000,
+            "temperature": 0.5,
         }
         endpoint = ENDPOINT + "/chat/completions"
         print("Sending query to OpenAI endpoint: " + endpoint)
         for message in messages:
             print(message)
-        report = requests.post(endpoint, headers=headers, json=data).json()
+        report = requests.post(endpoint, headers=headers, json=data)
+        if report.status_code != 200:
+            st.subheader("Error:")
+            st.write("Bad response from the OpenAI endpoint: " + endpoint)
+            st.write("Error code: " + str(report.status_code))
+            st.write(
+                "Please ensure that OpenAI is properly configured and re-start the application."
+            )
+            exit(1)
+        else:
+            report = report.json()
         print("Received response...")
         if "choices" in report:
             if len(report["choices"]) > 0:

@@ -6,31 +6,37 @@ from pprint import pprint
 sys.path.append("./dev/")
 sys.path.append("./src/")
 
+import os
+
 from csv_helpers import read_pipe_results_from_csv
 from evaluate import evaluate
 from plot_helpers import plot_histogram
 
-## Define eval params
-rag_settings = "prepostF_rerankT"
-method = "correctness"
-evaluator = "sem_similarity"
-csv_file_path = f"./rag_results/{rag_settings}.csv"
-## Read pipe results from CSV
-pipe_results = read_pipe_results_from_csv(filename=csv_file_path)
-# for elem in pipe_results:
-#    pprint(elem)
+sys.path.append("./dev/")
+sys.path.append("./src/")
 
-## Evaluate pipe results
+import logging
 
-eval_results = evaluate(pipe_results[:10], method=method, evaluator=evaluator)
-# pprint(eval_results)
+from csv_helpers import (
+    get_csv_files_from_dir,
+)
+from drivers import eval_single_pipe_result
 
+# Dataset
+dataset = "miniWiki"  # miniBiosQA, miniWiki
+# Define eval params
+method = (
+    "quExp"  # Which parameter setting to evaluate, stored by folder name, pool = all
+)
+# Define evaluator
+evaluator = "ROUGE-1"  # Which evaluator to use
+select = "correctness"  # Which selection method to use, either "correctness", "cr", "ar", "faithfulness", "all"
+n_worker = 4
 
-# Plot histogram of eval results
-results = list(eval_results.values())
-print(results)
-print(sum(results) / len(results))
-# Save the plot to a file
-# file_path = f"./rag_results/plots/{rag_settings}_{method}_{evaluator}.png"
-# Plot the histogram
-# plot_histogram(data=results, num_bins=10, file_path=file_path)
+# Get pipe results file names
+pipe_results_dir = f"./parallel_100_rows_pipe/{dataset}/{method}/"
+pipe_results_file_names = get_csv_files_from_dir(pipe_results_dir)
+# Define directory for eval results
+eval_results_dir = f"./parallel_100_rows_eval/{dataset}/{method}/{evaluator}/"
+# Create the directory if it does not exist
+os.makedirs(eval_results_dir, exist_ok=True)

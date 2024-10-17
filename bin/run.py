@@ -1,6 +1,7 @@
 # Test of rag evaluation
 # Imports
 import logging
+import os
 import sys
 import time
 from functools import partial
@@ -26,16 +27,29 @@ LLM_70B_NAME = "llama3.1:70b"
 MARQO_URL = "http://10.103.251.104:8882"
 MARQO_URL_GPU = "http://10.103.251.104:8880"
 
-# Load QM queries
+##
+## Load Dataset
+##
+
+
+# datasetHelpers = DatasetHelpers()
+# corpus_list, queries, ground_truths, goldPassages = (
+#     datasetHelpers.loadMiniWiki()
+# )  # Mini Wiki
+
 datasetHelpers = DatasetHelpers()
 corpus_list, queries, ground_truths, goldPassages = (
-    datasetHelpers.loadMiniWiki()
+    datasetHelpers.loadMiniBiosqa()
 )  # Mini Bios
 
-# Load the VectorStore
+##
+## Load the VectorStore
+##
+
 documentDB = VectorStore(MARQO_URL_GPU)  # Connect to marqo client via python API
 print(documentDB.getIndexes())  # Print all indexes
-documentDB.connectIndex("miniwiki-gpu")  # Connect to the minibio
+# documentDB.connectIndex("miniwiki-gpu")  # Connect to the miniwiki
+documentDB.connectIndex("minibios-qa-gpu")  # Connect to the minibio
 stats = documentDB.getIndexStats()
 print(stats)
 
@@ -44,27 +58,20 @@ print(stats)
 ##
 
 query_expansion = 1
-rerank = True  # , "rrf", False]  # , "rrf", False]  # True, "rrf", False
-prepost_context = True
+rerank = False  # , "rrf", False]  # , "rrf", False]  # True, "rrf", False
+prepost_context = False  # , True]
 background_reversed = False  #  , True]  # [False, True]
 num_ref_lim = 4  # [1, 2, 4, 6]
 model = "flax-sentence-embeddings_all_datasets_v4_mpnet-base"
-LLM_NAME = "mixtral:latest"
-
+LLM_NAME = "llama3.1:latest"
+# LLM_NAME =   # "llama3.1:70b", "llama3.1:latest", "llama3-quatqa:8b", "mixtral:latest"
 ##
-## Run pipeline
+## Load the RagPipe
 ##
 
-
-n_slice_rag_elements = len(queries)
-write_to_dir = "./pipe_results/LLMs/miniWiki/"
-print(f"Number of q-a pairs: {len(queries)}")
-
-# Load the RagPipe
 pipe = RagPipe()
 pipe.connectVectorStore(documentDB)
 pipe.connectLLM(LLM_URL, LLM_NAME)
-
 
 pipe.setConfigs(
     lang="EN",
@@ -79,18 +86,39 @@ pipe.setConfigs(
     answer_token_num=50,
 )
 
-
 # Time
 start = time.time()
-# pipelinerun()
-# Set pipeline configurations
 
-# Run pipeline
-# With slice of rag elements for dev
+##
+## Run pipeline
+##
+
+# run with ith slice of rag elements for dev
+
+n_slice_rag_elements = 40
+write_to_dir = "./pipe_results/triad/"
+os.makedirs(write_to_dir, exist_ok=True)
+
+# Generate artificial questions and ground truths
+n_artificial_queries = 20
+art_queries = [
+    f"What has happended in the year {i}?" for i in range(n_artificial_queries)
+]
+art_ground_truths = [
+    f"Event {i} has happended in the year {i}." for i in range(n_artificial_queries)
+]
+
+
+real_n_artificial_queries = queries[:n_slice_rag_elements] + art_queries
+real_n_artificial_ground_truths = (
+    ground_truths[:n_slice_rag_elements] + art_ground_truths
+)
+
+
 pipe.run(
-    questions=queries[:n_slice_rag_elements],
-    ground_truths=ground_truths[:n_slice_rag_elements],
-    # goldPassagesIds=goldPassages[200:n_slice_rag_elements],
+    questions=real_n_artificial_queries,
+    ground_truths=real_n_artificial_ground_truths,
+    goldPassagesIds=goldPassages[:n_slice_rag_elements],
 )
 
 print("Pipeline run completed.")
@@ -107,17 +135,14 @@ csv_file_path += f"rerank{rerank}_"
 csv_file_path += f"cExp{prepost_context}_"
 csv_file_path += f"backRev{background_reversed}_"
 csv_file_path += f"numRefLim{num_ref_lim}_"
-csv_file_path += f"model{model}_"
 csv_file_path += f"LLM{LLM_NAME}_"
 csv_file_path += ".csv"
 
 write_pipe_results_to_csv(pipe.rag_elements, csv_file_path)
 end = time.time()
-print(" Dataset used is miniWiki")
+print(" Dataset used is miniBiosQA")
 print(f"Time: {end - start} seconds." + "\n")
 print(f"Time: {np.round((end - start) / 60, 2)} minutes " + "\n")
 print(f"Time: {np.round((end - start) / 3600, 2)} hours " + "\n")
 print(f"Model: {model}")
 print(f"LLM: {LLM_NAME}")
-
-# evaluationrun()

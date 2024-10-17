@@ -28,7 +28,7 @@ def pipe_single_setting_run(
     documentDB,
     LLM_URL,
     LLM_NAME,
-    n_slice_rag_elements,
+    n_sample_queries,
     write_to_dir,
 ):
     # Unpack parameter permuation
@@ -60,11 +60,19 @@ def pipe_single_setting_run(
     )
 
     # Run pipeline
-    # With slice of rag elements for dev
+    # With slice of rag elements for dev. Slice is designed to take equally distrubuted queries up to n_sample_queries
+    n_queries = len(queries)
+    k = n_queries // n_sample_queries
+    queries = queries[::k][:n_sample_queries]
+    ground_truths = ground_truths[::k][:n_sample_queries]
+    if goldPassages is not None:
+        goldPassages = goldPassages[::k][:n_sample_queries]
+
     pipe.run(
-        questions=queries[:n_slice_rag_elements],
+        questions=queries,
         ground_truths=ground_truths,
         goldPassagesIds=goldPassages,
+        nThreads=4,
     )
 
     print("Pipeline run completed.")
@@ -72,8 +80,10 @@ def pipe_single_setting_run(
     # for elem in pipe.rag_elements:
     #    pprint(elem)
 
-    # Write results to csv file
-    # Build the csv file path for the current parameter setting
+    ##
+    ##  Filename determines:  parameter setting.
+    ##
+
     csv_file_path = write_to_dir
     csv_file_path += f"quExp{query_expansion_val}_"
     csv_file_path += f"rerank{rerank_val}_"
@@ -89,7 +99,7 @@ def eval_single_pipe_result(
     pipe_results_file_name,
     pipe_results_dir,
     eval_results_dir,
-    method,
+    select,
     evaluator,
     slice_for_dev,
 ):
@@ -107,7 +117,7 @@ def eval_single_pipe_result(
     # Evaluate pipe results
     eval_results = evaluate(
         rag_elements=pipe_results[:slice_for_dev],
-        method=method,
+        select=select,
         evaluator=evaluator,
     )
     # pprint(eval_results)
@@ -117,7 +127,7 @@ def eval_single_pipe_result(
         eval_results=eval_results,
         eval_results_dir=eval_results_dir,
         pipe_results_file=pipe_results_file,
-        method=method,
+        select=select,
         evaluator=evaluator,
         slice_for_dev=slice_for_dev,
     )

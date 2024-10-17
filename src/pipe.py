@@ -1,9 +1,11 @@
 # Main object for RAG pipeline
 
+import concurrent.futures
 from pprint import pprint
 
 import requests
 from tqdm import tqdm
+from utils import clean_sentence
 
 # Reranker Endpoint
 RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
@@ -248,6 +250,7 @@ class RagPipe:
 
         # Update filter string with language for index search
         # print("Waiting for background!")
+
         try:
             background, contexts, contexts_ids = self.DB.getBackground(
                 query,
@@ -289,12 +292,10 @@ class RagPipe:
 
         # Tell llm again to obey instructions
         enforce_query = (
-            "The answer has to mention explicit details and be short. "
-            "The answer should be a explicit and explainatory. "
-            "If its a yes or no question, just answer with yes or no."
+            "The answer has to mention explicit details, be explainatory and be short. The answer should refer to the query."
+            "If it is a yes or no question, answer with yes or no and then give a brief reasoning."
             "If the answer is not provided in the context. You must say that you dont know the answer."
-            "Do not state that you are referring to the context. "
-            'The retrieved contexts always start with "Context:" '
+            'Do not include sentences like "According to the given context" or "Based on the context".'
             "Given the context information and not prior knowledge, answer the following user query: "
             + query
         )
@@ -318,6 +319,7 @@ class RagPipe:
         corpus_list=None,
         newIngest=False,
         maxDocs=1000000,
+        nThreads=1,
     ):
         # Run RAG pipeline for questions, ground_truhts and corpus_list
         if newIngest:
@@ -391,34 +393,45 @@ class RagPipe:
 
         # Iterate over the rag elements and get the answer from the LLM model and the contexts from the Vector DB
         # size = len(self.rag_elements)
-        for rag_element in tqdm(self.rag_elements):
-            # print(f"Current Question: {rag_element['question']}")
-            # Get answer
+
+        # Define helper function to process rag elements in parallel
+        def process_rag_element(rag_element):
+            # Get answer from RAG system
+            query = clean_sentence(rag_element["question"])
             try:
                 llmanswer, contexts, contexts_ids = self.answerQuery(
-                    rag_element["question"],
+                    query=query,
                 )
             except Exception as e:
                 print(f"Error: {e}")
                 print(f"Currrent question: {rag_element['question']}")
                 print("Could not answer question. Skipping to next question.")
 
-            # print("Received Answer from llm")
-            # Clean answer from llm
-            llmanswer = llmanswer.replace("\n", " ")
-            llmanswer = llmanswer.replace("\t", " ")
-            llmanswer = llmanswer.replace("\r", " ")
-            llmanswer = llmanswer.strip()
+            # Clean llmanswer
+            llmanswer = clean_sentence(llmanswer)
 
             # Clean contexts
-            contexts = [context.replace("\n", " ") for context in contexts]
-            contexts = [context.replace("\t", " ") for context in contexts]
-            contexts = [context.replace("\r", " ") for context in contexts]
-            contexts = [context.strip(". ") for context in contexts]
+            contexts = [clean_sentence(context) for context in contexts]
 
             rag_element["answer"] = llmanswer
             rag_element["contexts"] = contexts
             rag_element["contexts_ids"] = contexts_ids
 
-            # Update on progress
-            # print(f"Progress: {self.rag_elements.index(rag_element) + 1}/{size}")
+            return rag_element
+
+        # Process rag elements in parallel
+        with concurrent.futures.ThreadPoolExecutor(max_workers=nThreads) as executor:
+            results = list(
+                tqdm(
+                    executor.map(process_rag_element, self.rag_elements),
+                    total=len(self.rag_elements),
+                )
+            )
+        self.rag_elements = results
+
+        ####
+        #### Sequential processing
+        ####
+
+        # for rag_element in tqdm(self.rag_elements):
+        #     rag_element = process_rag_element(rag_element)
