@@ -22,7 +22,7 @@ MARQO_URL_GPU = "http://10.103.251.104:8880"
 ##
 
 documentDB = VectorStore(MARQO_URL_GPU)  # Connect to marqo client via python API
-print(documentDB.getIndexes())  # Print all indexes
+# print(documentDB.getIndexes())  # Print all indexes
 documentDB.connectIndex("miniwiki-gpu")  # Connect to the minibio
 stats = documentDB.getIndexStats()
 print(stats)

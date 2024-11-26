@@ -296,6 +296,6 @@ def write_eval_results_to_csv(
             df.loc[i, "Faithfulness"] = rowFaith
 
     # Save the updated DataFrame back to a CSV file
-    df.to_csv(eval_results_file, index=False)
+    df.to_csv(eval_results_file, index=False, quoting=csv.QUOTE_ALL)
 
     print(f"Results written to {eval_results_file} successfully.")

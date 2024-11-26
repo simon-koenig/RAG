@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 # Constants
 LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "llama3.1:70b"
+LLM_NAME = "llama3.1:latest"
 
 
 def evaluate(rag_elements, select=None, given_queries=None, evaluator="ROUGE-1"):
@@ -198,28 +198,26 @@ def llm_context_relevance(context, query):
         {
             "role": "user",
             "content": (
-                "Given the following context and query,"
-                " Give a rating from 1 to 5."
+                " Given the following context and query, give a rating from 1 to 5."
                 " Respond with 1 if the context is not relevant to the query at all."
                 " Respond with 2 if the context is slightly relevant to the query."
                 " Respond with 3 if the context is moderately relevant to the query."
                 " Respond with 4 if the context is mostly relevant to the query."
                 " Respond with 5 if the context is completely relevant to the query."
                 ' Your response must strictly and only be a single integer from "1" to "5" and no additional text.'
-                " Some Examples:"
-                ' If none of the nouns in the query are present in the context, the context is not relevant and your response should be "1".'
-                ' If the context is "The sky is blue" and the query is "What color is the grass?", your response should be "1".'
-                ' If the context is "Water boils at 100 degrees Celsius" and the query is "At what temperature does water freeze?", your response should be "1".'
-                ' If the context is "The pandemic, was a global event and lead to many deaths." and the query is "What year did the corona pandemic start?", your response should be "1".'
+                " Adhere to the examples:"
                 ' If the context is "The pandemic, spanning the whole globe started in 2019." and the query is "What year did the corona pandemic start?", your response should be "5".'
                 ' If the context is "The sky is blue" and the query is "What color is the sky?", your response should be "5".'
-                ' If the context is "Water boils at 100 degrees Celsius" and the query is "At what temperature does water boil?", your response should be "5".'
                 ' If the context is "The sky is blue" and the query is "What is the weather like?", your response should be "4".'
                 ' If the context is "Water boils at 100 degrees Celsius" and the query is "What happens to water at high temperatures?", your response should be "4".'
                 ' If the context is "The sky is blue" and the query is "What color is the sky usually?", your response should be "3".'
                 ' If the context is "Water boils at 100 degrees Celsius" and the query is "At what temperature does water usually boil?", your response should be "3".'
                 ' If the context is "The sky is blue" and the query is "What color is the ocean?", your response should be "2".'
                 ' If the context is "Water boils at 100 degrees Celsius" and the query is "What is the boiling point of water in Fahrenheit?", your response should be "2".'
+                ' If none of the nouns in the query are present in the context, the context is not relevant and your response should be "1".'
+                ' If the context is "The sky is blue" and the query is "What color is the grass?", your response should be "1".'
+                ' If the context is "The pandemic, was a global event and lead to many deaths." and the query is '
+                ' "What year did the corona pandemic start?", your response should be "1". '
                 f'Here are the Context: "{context}" and the Query: "{query}".'
             ),
         },
@@ -270,31 +268,26 @@ def llm_faithfulness(context, answer):
         {
             "role": "user",
             "content": (
-                "Given the following context and answer,"
-                " Give a rating from 1 to 5."
+                " Given the following context and answer, give a rating from 1 to 5."
                 " Respond with 1 if the answer is not sufficiently grounded in the context at all."
                 " Respond with 2 if the answer is slightly grounded in the context."
                 " Respond with 3 if the answer is moderately grounded in the context."
                 " Respond with 4 if the answer is mostly grounded in the context."
                 " Respond with 5 if the answer is completely grounded in the context."
                 ' Your response must strictly and only be a single integer from "1" to "5" and no additional text.'
-                " Some Examples:"
-                ' If none of the nouns in the answer are present in the context, the answer is not grounded and your response should be "1".'
-                ' If the answer is "I do not know" or "there is no mention of {...} in the given context", the answer is not grounded and your response should be "1".'
+                " Adhere to the examples:"
                 ' If the context is "The sky is blue" and the answer is "The sky is blue", your response should be "5".'
-                ' If the context is "The sky is blue" and the answer is "The grass is green", your response should be "1".'
                 ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water boils at 100 degrees Celsius", your response should be "5".'
-                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water freezes at 0 degrees Celsius", your response should be "1".'
-                ' If the context is "The pandemic, spanning the whole globe started in 2019." and the answer is "The pandemic started in 2019.", your response should be "5".'
-                ' If the context is "The pandemic, was a global event and lead to many deaths." and the answer is "The pandemic started in 2019.", your response should be "1".'
-                ' If the context is "The sky is blue" and the answer is "The sky is somewhat blue", your response should be "3".'
-                ' If the context is "The sky is blue" and the answer is "The sky is clear and blue", your response should be "4".'
                 ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water boils at around 100 degrees Celsius", your response should be "4".'
-                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water boils at a high temperature", your response should be "3".'
                 ' If the context is "The pandemic, spanning the whole globe started in 2019." and the answer is "The pandemic started in late 2019.", your response should be "4".'
-                ' If the context is "The pandemic, spanning the whole globe started in 2019." and the answer is "The pandemic started in the year 2019.", your response should be "5".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water boils at a high temperature", your response should be "3".'
+                ' If the context is "The sky is blue" and the answer is "The sky is somewhat blue", your response should be "3".'
                 ' If the context is "The pandemic, was a global event and lead to many deaths." and the answer is "The pandemic was a significant global event.", your response should be "2".'
                 ' If the context is "The pandemic, was a global event and lead to many deaths." and the answer is "The pandemic caused many deaths.", your response should be "2".'
+                ' If the context is "Water boils at 100 degrees Celsius" and the answer is "Water freezes at 0 degrees Celsius", your response should be "1".'
+                ' If the context is "The pandemic, was a global event and lead to many deaths." and the answer is "The pandemic started in 2019.", your response should be "1".'
+                ' If none of the nouns in the answer are present in the context, the answer is not grounded and your response should be "1".'
+                ' If the answer is "I do not know" or "there is no mention of {...} in the given context", the answer is not grounded and your response should be "1".'
                 f'Here are the Context: "{context}" and the Answer: "{answer}".'
             ),
         },
@@ -342,31 +335,26 @@ def llm_answer_relevance(answer, query):
         {
             "role": "user",
             "content": (
-                "Given the following query and answer,"
-                " Give a rating from 1 to 5."
+                " Given the following query and answer, give a rating from 1 to 5."
                 " Respond with 1 if the answer is not relevant to the query at all."
                 " Respond with 2 if the answer is slightly relevant to the query."
                 " Respond with 3 if the answer is moderately relevant to the query."
                 " Respond with 4 if the answer is mostly relevant to the query."
                 " Respond with 5 if the answer is completely relevant to the query."
                 ' Your response must strictly and only be a single integer from "1" to "5" and no additional text.'
-                " Some Examples:"
-                " If none of the nouns in the answer are present in the query, the answer is not relevant."
-                ' If the answer is "I do not know" or "there is no mention of {...} in the given context", your response should be "1".'
+                " Adhere to the examples:"
                 ' If the query is "What color is the sky?" and the answer is "The sky is blue", your response should be "5".'
-                ' If the query is "What color is the grass?" and the answer is "The sky is blue", your response should be "1".'
                 ' If the query is "At what temperature does water boil?" and the answer is "Water boils at 100 degrees Celsius", your response should be "5".'
-                ' If the query is "At what temperature does water freeze?" and the answer is "Water boils at 100 degrees Celsius", your response should be "1".'
-                ' If the query is "What year did the corona pandemic start?" and the answer is "The pandemic, spanning the whole globe started in 2019.", your response should be "5".'
-                ' If the query is "What year did the corona pandemic start?" and the answer is "The pandemic, was a global event and lead to many deaths.", your response should be "1".'
-                ' If the query is "What is the capital of France?" and the answer is "Paris is the capital of France.", your response should be "5".'
-                ' If the query is "What is the capital of France?" and the answer is "France is a country in Europe.", your response should be "1".'
                 ' If the query is "What is the capital of Germany?" and the answer is "Berlin is a major city in Germany.", your response should be "4".'
-                ' If the query is "What is the capital of Germany?" and the answer is "Berlin is the capital of Germany.", your response should be "5".'
-                ' If the query is "What is the capital of Germany?" and the answer is "Germany is a country in Europe.", your response should be "1".'
                 ' If the query is "What is the capital of Germany?" and the answer is "Berlin is a city in Germany.", your response should be "4".'
                 ' If the query is "What is the capital of Germany?" and the answer is "Berlin is a large city.", your response should be "3".'
+                ' If the query is "How many moons does the Earth have?" and the answer is "The Earth has at least one moon", your response should be "3".'
                 ' If the query is "What is the capital of Germany?" and the answer is "Berlin is known for its history.", your response should be "2".'
+                ' If the query is "At what temperature does water boil?" and the answer is "Water boils at its boiling point.", your response should be "2".'
+                ' If the query is "What year did the corona pandemic start?" and the answer is "The pandemic, was a global event and lead to many deaths.", your response should be "1".'
+                ' If the query is "What is the capital of Germany?" and the answer is "Germany is a country in Europe.", your response should be "1".'
+                ' If none of the nouns in the answer are present in the query, the answer is not relevant, your response should be "1".'
+                ' If the answer is "I do not know" or "there is no mention of {...} in the given context", your response should be "1".'
                 f'Here are the Query: "{query}" and the Answer: "{answer}".'
             ),
         },
@@ -412,29 +400,27 @@ def llm_correctness(answer, ground_truth):
         {
             "role": "user",
             "content": (
-                "Given the following answer and ground-truth,"
-                " Give a rating from 1 to 5."
+                "Given the following answer and ground-truth, give a rating from 1 to 5."
                 " Respond with 1 if the answer is not correct based on the ground-truth at all."
                 " Respond with 2 if the answer is slightly correct based on the ground-truth."
                 " Respond with 3 if the answer is moderately correct based on the ground-truth."
                 " Respond with 4 if the answer is mostly correct based on the ground-truth."
                 " Respond with 5 if the answer is completely correct based on the ground-truth."
                 ' Your response must strictly and only be a single integer from "1" to "5" and no additional text.'
-                " Some Examples:"
+                " Adhere to the examples:"
+                ' If the answer is "yes, the shirt is dark blue" and the ground-truth is "yes", your response should be "5".'
+                ' If the answer is "yes" and the ground-truth is "yes", your response should be "5".'
+                ' If the answer is "The sky is clear and blueish" and the ground-truth is "The sky is blue", your response should be "4".'
+                ' If the answer is "The sky is blueish" and the ground-truth is "The sky is blue", your response should be "4".'
+                ' If the answer is "The sky is somewhat blue" and the ground-truth is "The sky is blue", your response should be "3".'
+                ' If the answer is "The sky is blue with some clouds" and the ground-truth is "The sky is is almost clear", your response should be "3".'
+                ' If the answer is "The sky is cloudy and the ground-truth is "The sky is blue", your response should be "2".'
+                ' If the answer is "The sky is blue" and the ground-truth is "The sky is clear", your response should be "2".'
                 ' If none of the nouns in the answer are present in the ground-truth, the answer is not correct. Thus your response should be "1".'
                 ' If the answer is "yes" and the ground-truth is "no", your response should be "1".'
                 ' If the answer is "no" and the ground-truth is "yes", your response should be "1".'
-                ' If the answer is "I do not know", your response should be "1".'
                 ' If the answer is "there is no mention of {...} in the given context" and the ground-truth is "yes" or "no", your response should be "1".'
-                ' If the answer is "yes, the shirt is dark blue" and the ground-truth is "yes", your response should be "5".'
-                ' If the answer is "yes" and the ground-truth is "yes", your response should be "5".'
-                ' If the answer is "The sky is blue" and the ground-truth is "The sky is blue", your response should be "5".'
-                ' If the answer is "The sky is blue" and the ground-truth is "The sky is clear", your response should be "4".'
-                ' If the answer is "The sky is clear and blue" and the ground-truth is "The sky is blue", your response should be "4".'
-                ' If the answer is "The sky is somewhat blue" and the ground-truth is "The sky is blue", your response should be "3".'
-                ' If the answer is "The sky is blue with some clouds" and the ground-truth is "The sky is blue", your response should be "3".'
-                ' If the answer is "The sky is light blue" and the ground-truth is "The sky is blue", your response should be "2".'
-                ' If the answer is "The sky is blueish" and the ground-truth is "The sky is blue", your response should be "2".'
+                ' If the answer is "I do not know", your response should be "1".'
                 f'Here are the Answer: "{answer}" and the ground-truth: "{ground_truth}".'
             ),
         },

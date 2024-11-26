@@ -72,7 +72,7 @@ def pipe_single_setting_run(
         questions=queries,
         ground_truths=ground_truths,
         goldPassagesIds=goldPassages,
-        nThreads=4,
+        nThreads=1,
     )
 
     print("Pipeline run completed.")
@@ -90,6 +90,7 @@ def pipe_single_setting_run(
     csv_file_path += f"cExp{prepost_context_val}_"
     csv_file_path += f"backRev{background_reversed_val}_"
     csv_file_path += f"numRefLim{num_ref_lim_val}_"
+    csv_file_path += f"{LLM_NAME}_"
     csv_file_path += ".csv"
 
     write_pipe_results_to_csv(pipe.rag_elements, csv_file_path)

@@ -14,8 +14,10 @@ sys.path.append("./src/")
 import concurrent.futures
 import itertools
 
+from csv_helpers import write_pipe_results_to_csv
 from dataset_helpers import DatasetHelpers
 from drivers import pipe_single_setting_run
+from rag_pipe import RagPipe
 from vector_store import VectorStore
 
 # Define API ENDPOINTS
@@ -55,16 +57,18 @@ num_ref_lim = [1, 2, 3, 4]  # [1, 2, 4, 6]
 
 # Define parameter space
 # query_expansion, rerank, prepost_context, background_reversed, num_ref_lim
-fixed_param = [1, False, False, False]
+fixed_param = [1, True, True]
 # Put in dict
 parameters = {
     "query_expansion": fixed_param[0],
     "rerank": fixed_param[1],
     "prepost_context": fixed_param[2],
-    "background_reversed": fixed_param[3],
     "num_ref_lim": num_ref_lim,
 }
 
+
+### The one parameter to vary: LLMS
+LLMS = ["llama3.1:latest", "llama3.1:70b", "command:r", "mixtral:latest"]
 for num_sources in num_ref_lim:
     # Load the RagPipe
     pipe = RagPipe()
@@ -87,6 +91,7 @@ for num_sources in num_ref_lim:
 
     # Run pipeline
     # With slice of rag elements for dev
+    n_sample_queries = 10
     n_queries = len(queries)
     k = n_queries // n_sample_queries
     queries = queries[::k][:n_sample_queries]
@@ -109,12 +114,7 @@ for num_sources in num_ref_lim:
     ##  Filename determines:  parameter setting.
     ##
 
-    csv_file_path = write_to_dir
-    csv_file_path += f"quExp{query_expansion_val}_"
-    csv_file_path += f"rerank{rerank_val}_"
-    csv_file_path += f"cExp{prepost_context_val}_"
-    csv_file_path += f"backRev{background_reversed_val}_"
-    csv_file_path += f"numRefLim{num_ref_lim_val}_"
+    csv_file_path = "test_dir"
     csv_file_path += ".csv"
 
     write_pipe_results_to_csv(pipe.rag_elements, csv_file_path)
@@ -170,9 +170,3 @@ temp = end - start
 
 
 print(f"Execution time: {temp}")
-print("Parameter count: ", parameter_count)
-print("Execution time per parameter setting: ", temp / parameter_count)
-print(
-    "Execution time per parameter setting per worker: ",
-    temp / parameter_count / n_worker,
-)

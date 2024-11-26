@@ -20,7 +20,7 @@ from drivers import eval_single_pipe_result
 dataset = "miniWiki"  # miniBiosQA, miniWiki
 # Define eval params
 method = (
-    "quExp"  # Which parameter setting to evaluate, stored by folder name, pool = all
+    "pool"  # Which parameter setting to evaluate, stored by folder name, pool = all
 )
 # Define evaluator
 evaluator = "ROUGE-1"  # Which evaluator to use

@@ -722,6 +722,7 @@ class VectorStore:
         Returns:
             dict: A dictionary containing the statistics of the index.
         """
+
         return self.mq.index(self.indexName).get_stats()
 
     def getIndexSettings(self):

@@ -20,24 +20,25 @@ from vector_store import VectorStore
 
 # Define API ENDPOINTS
 LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "mixtral:latest"  # "llama3.1:latest",  "llama3.1:70b", "llama3-chatqa:8b", "mixtral:latest"
+LLM_NAME = "mixtral:latest"  #  ["llama3.1:latest", "llama3.2:latest", "gemma2:latest", "mixtral:latest"]
 MARQO_URL = "http://10.103.251.104:8882"
 MARQO_URL_GPU = "http://10.103.251.104:8880"
 
 # Load QM queries
 datasetHelpers = DatasetHelpers()
 corpus_list, queries, ground_truths, goldPassages = (
-    datasetHelpers.loadMiniWiki()
+    datasetHelpers.loadMiniBiosqa()
 )  # datasetHelpers.loadMiniBiosqa() , datasetHelpers.loadMiniWiki()
 
 # Load the VectorStore
 documentDB = VectorStore(MARQO_URL_GPU)  # Connect to marqo client via python API
 print(documentDB.getIndexes())  # Print all indexes
 documentDB.connectIndex(
-    "miniwiki-gpu"
+    "minibios-qa-gpu"
 )  # [{'indexName': 'minibios-qa-gpu'}, {'indexName': 'miniwiki-gpu'}]]
 stats = documentDB.getIndexStats()
 print(stats)
+
 
 ##
 ## Set parameters for the pipeline
@@ -48,9 +49,10 @@ rerank = [
     "rrf",
     True,
 ]  #  "rrf", False]    # , "rrf", False]  # True, "rrf", False
-prepost_context = [False]
+prepost_context = [False, True]
 background_reversed = [False]
-num_ref_lim = [5]  # [1, 2, 4, 6] [5]
+num_ref_lim = [1, 2, 3, 4, 5, 6]  # [1, 2, 4, 6]
+
 
 ##
 ## Calculate the dimensionality of the parameter space
@@ -74,17 +76,23 @@ parameter_count = np.prod(
 # Define parameter space
 parameters = list(
     itertools.product(
-        query_expansion, rerank, prepost_context, background_reversed, num_ref_lim
+        query_expansion,
+        rerank,
+        prepost_context,
+        background_reversed,
+        num_ref_lim,
     )
 )
 
 
 # Run pipeline for all parameter permutations
-n_sample_queries = 100
+n_sample_queries = 5
+
 # Manually adjust this path to the desired output directory with the variable parameter
-write_to_dir = "./parallel_100_rows_pipe/miniWiki/quExp/"
+write_to_dir = "./pipe_results/miniBiosQA/LLMs/"
 # make sure to create the directory before running the script
 os.makedirs(write_to_dir, exist_ok=True)
+
 
 # Define helper function
 dev_helper_func = partial(
@@ -101,7 +109,6 @@ dev_helper_func = partial(
 # Make test run and time for n workers
 # Run the pipeline in parallel
 
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -117,11 +124,9 @@ logging.basicConfig(
 #             logging.error(f"Generated an exception: {exc}")
 #     print(f"Execution with {n_worker} workers")
 
-
 # end = time.time()
 # temp = end - start
 # outfile.write(f"Execution with {n_worker} workers took {temp} seconds\n")
-
 
 # Sequential with parallel under the hood
 start = time.time()
