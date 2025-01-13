@@ -20,18 +20,20 @@ from drivers import eval_single_pipe_result
 dataset = "miniBiosQA"  # miniBiosQA, miniWiki
 # Define eval params
 method = (
-    "cExp"  # Which parameter setting to evaluate, stored by folder name, pool = all
+    "rerank"  # Which parameter setting to evaluate, stored by folder name, pool = all
 )
 # Define evaluator
 evaluator = "llm-judge"  # Which evaluator to use
-select = "correctness"  # Which selection method to use, either "correctness", "cr", "ar", "faithfulness", "all"
+select = "all"  # Which selection method to use, either "correctness", "cr", "ar", "faithfulness", "all"
 n_worker = 4
 
 # Get pipe results file names
 pipe_results_dir = f"./pipe_results/{dataset}/{method}/"
+pipe_results_dir = "./pipe_results/triad/"  # triad
 pipe_results_file_names = get_csv_files_from_dir(pipe_results_dir)
 # Define directory for eval results
 eval_results_dir = f"./eval_results/{dataset}/{method}/{evaluator}/"
+eval_results_dir = f"./eval_results/triad_art/"  # triad
 # Create the directory if it does not exist
 os.makedirs(eval_results_dir, exist_ok=True)
 
@@ -47,7 +49,7 @@ partial_helper_vary_input_file = partial(
     eval_results_dir=eval_results_dir,
     select=select,
     evaluator=evaluator,
-    slice_for_dev=3,
+    slice_for_dev=None,
 )
 
 # Configure logging
@@ -57,8 +59,8 @@ logging.basicConfig(
 
 with concurrent.futures.ThreadPoolExecutor(max_workers=n_worker) as executor:
     futures = []
-    for pipe_results_file_name in pipe_results_file_names[:]:
-        if "numRefLim3" in pipe_results_file_name:
+    for pipe_results_file_name in pipe_results_file_names[3:4]:
+        if "mixtral:latest" in pipe_results_file_name:
             logging.info(f"Submitting task for {pipe_results_file_name}")
             future = executor.submit(
                 partial_helper_vary_input_file, pipe_results_file_name
@@ -72,6 +74,7 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=n_worker) as executor:
             logging.error(f"Generated an exception: {exc}")
 
 
+# Sequential
 # for pipe_results_file_name in pipe_results_file_names[:]:  # Slice for dev
 #     if "quExp1" in pipe_results_file_name:
 #         if "numRefLim2" not in pipe_results_file_name:

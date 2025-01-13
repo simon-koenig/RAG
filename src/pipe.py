@@ -209,11 +209,17 @@ class RagPipe:
         try:
             report = requests.post(endpoint, headers=headers, json=data)
             # pprint(report)
+            if report.status_code != 200:
+                print(f"Response not as expected. Status code: {report.status_code}")
             report = report.json()
         except Exception as e:
-            print(f"Error: {e}")
+            print(f" Error: {e} ")
             try:
                 report = requests.post(endpoint, headers=headers, json=data)
+                if report.status_code != 200:
+                    print(
+                        f"Response not as expected. Status code: {report.status_code}"
+                    )
                 # pprint(report)
                 report = report.json()
             except Exception as e:
@@ -292,11 +298,10 @@ class RagPipe:
 
         # Tell llm again to obey instructions
         enforce_query = (
-            "The answer has to mention explicit details, be explainatory and be short. The answer should refer to the query."
-            "If it is a yes or no question, answer with yes or no and then give a brief reasoning."
+            "The answer has to mention explicit details, be explainatory, be short and give a brief reasoning. The answer has to refer to the query."
             "If the answer is not provided in the context. You must say that you dont know the answer."
             'Do not include sentences like "According to the given context" or "Based on the context".'
-            "Given the context information and not prior knowledge, answer the following user query: "
+            "Using only information from the provided context and not prior knowledge, answer the following user query: "
             + query
         )
         messages = [

@@ -10,8 +10,6 @@ from dataset_helpers import DatasetHelpers
 from vector_store import VectorStore
 
 # Define API ENDPOINTS
-LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "llama3"
 MARQO_URL = "http://10.103.251.104:8882"
 MARQO_URL_GPU = "http://10.103.251.104:8880"
 
@@ -20,7 +18,7 @@ MARQO_URL_GPU = "http://10.103.251.104:8880"
 ##
 
 datasetHelpers = DatasetHelpers()
-corpus_list, queries, ground_truths = datasetHelpers.loadMiniWiki()
+corpus_list, queries, ground_truths, _ = datasetHelpers.loadMiniWiki()
 
 ##
 ## Load the VectorStore
@@ -33,7 +31,8 @@ print(documentDB_GPU.getIndexes())  # Print all indexes
 ## Delete old index
 ##
 
-documentDB_GPU.deleteIndex("miniwiki-gpu")  # Delete the index
+documentDB_GPU.deleteIndex("minwiki-gpu")  # Delete the old index
+print(documentDB_GPU.getIndexes())  # Print all indexes to check if the index is deleted
 
 
 ##

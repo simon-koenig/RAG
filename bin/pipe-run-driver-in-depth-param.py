@@ -20,7 +20,7 @@ from vector_store import VectorStore
 
 # Define API ENDPOINTS
 LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "mixtral:latest"  #  ["llama3.1:latest", "llama3.2:latest", "gemma2:latest", "mixtral:latest"]
+# LLM_NAME = "mixtral:latest"  #  ["llama3.1:latest", "llama3.2:latest", "gemma2:latest", "mixtral:latest"]
 MARQO_URL = "http://10.103.251.104:8882"
 MARQO_URL_GPU = "http://10.103.251.104:8880"
 
@@ -45,10 +45,8 @@ print(stats)
 ##
 
 query_expansion = [1]  # , 2, 3]
-rerank = [
-    False,
-]  #  "rrf", False]    # , "rrf", False]  # True, "rrf", False
-prepost_context = [True]
+rerank = [True, "rrf", False]  # , "rrf", False]  # True, "rrf", False
+prepost_context = [False]
 background_reversed = [False]
 num_ref_lim = [3]  # [1, 2, 4, 6]
 
@@ -69,20 +67,17 @@ parameters = list(
     )
 )
 
-
-# Run pipeline for all parameter permutations
-n_sample_queries = len(queries)
+# Define number of queries to sample
+n_sample_queries = 100
 
 # Manually adjust this path to the desired output directory with the variable parameter
-write_to_dir = "./pipe_results/miniBiosQA/cExp/"
+write_to_dir = "./pipe_results/miniBiosQA/rerank/"
 # make sure to create the directory before running the script
 os.makedirs(write_to_dir, exist_ok=True)
 
 
 # Iterate over multiple LLMs
-for LLM_NAME in [
-    "mixtral:latest",
-]:
+for LLM_NAME in ["llama3.1:latest"]:
     # Define helper function
     dev_helper_func = partial(
         pipe_single_setting_run,
