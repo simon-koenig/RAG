@@ -3,20 +3,16 @@
 import sys
 from pprint import pprint
 
-from datasets import load_dataset
-
 sys.path.append("./dev/")
 sys.path.append("./src/")
+sys.path.append("./")
 
+from config import LLM_URL, MARQO_URL, MARQO_URL_GPU
 from dataset_helpers import DatasetHelpers
-from pipe import RagPipe
 from vector_store import VectorStore
 
-# Define API ENDPOINTS
-LLM_URL = "http://10.103.251.104:8040/v1"
+# Define LLM Name if necessary
 LLM_NAME = "llama3.1:latest"
-MARQO_URL = "http://10.103.251.104:8882"
-MARQO_URL_GPU = "http://10.103.251.104:8880"
 
 datasetHelpers = DatasetHelpers()
 corpus_list, queries, ground_truths, goldPassages = (

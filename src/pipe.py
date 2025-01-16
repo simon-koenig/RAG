@@ -1,42 +1,13 @@
 # Main object for RAG pipeline
 
 import concurrent.futures
-from pprint import pprint
 
 import requests
 from tqdm import tqdm
 from utils import clean_sentence
 
-# Reranker Endpoint
-RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
-
 
 class RagPipe:
-    """
-    RAGPipe is a class that represents a pipeline for the RAG (Retrieval-Augmented Generation) model.
-    It provides methods for connecting to a vector store, connecting to a language model, setting a custom prompt,
-    sending queries to the language model, answering user queries, evaluating context relevance, faithfulness, answer relevance
-    and correctness.
-
-    Attributes:
-        PROMPT_EN (str): The default English prompt for the language model.
-        PROMPT_DE (str): The default German prompt for the language model.
-        PROMPT (str): The current prompt for the language model.
-
-    Methods:
-        connectVectorStore(vectorStore): Connects the pipeline to a vector store.
-        connectLLM(LLM_URL, LLM_NAME): Connects the pipeline to a language model.
-        setCostumPrompt(userPrompt): Sets a custom prompt for the language model.
-        sendToLLM(messages, model_temp, answer_size, presence_pen, repeat_pen): Sends messages to the language model and retrieves a response.
-        evalSendToLLM(messages, model_temp, answer_size, presence_pen, repeat_pen): Sends messages to the language model and evaluates the response.
-        answerQuery(query, rerank, prepost_context, lang): Answers a user query based on the given context.
-        evaluate_context_relevance(queries, contexts, contexts_ids, goldPassages, evaluator): Evaluates the relevance of contexts for a given set of queries.
-        llm_binary_context_relevance(context, query): Evaluates the binary relevance of a context for a given query.
-        evaluate_faithfulness(answers, contexts, evaluator, contexts_ids): Evaluates the faithfulness of answers given a set of contexts.
-        llm_binary_faithfulness(context, answer): Evaluates the binary faithfulness of an answer given a context.
-        evaluate_answer_relevance(queries, answers, evaluator): Evaluates the relevance of answers for a given set of queries.
-    """
-
     def __init__(self):
         self.PROMPT_EN = (
             "You are a helpful assisstant. Context information is given in the following text. "
@@ -433,10 +404,3 @@ class RagPipe:
                 )
             )
         self.rag_elements = results
-
-        ####
-        #### Sequential processing
-        ####
-
-        # for rag_element in tqdm(self.rag_elements):
-        #     rag_element = process_rag_element(rag_element)

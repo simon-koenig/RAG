@@ -2,15 +2,16 @@
 
 # from pprint import pprint
 
-from pprint import pprint
+import sys
 
 import marqo
 import requests
 from tqdm import tqdm
 from utils import chunkText
 
-# Reranker Endpoint
-RERANKER_ENDPOINT = "http://10.103.251.104:8883/rerank"
+sys.path.append("./")
+
+from config import RERANKER_ENDPOINT
 
 
 class VectorStore:

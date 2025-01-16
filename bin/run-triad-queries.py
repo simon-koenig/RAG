@@ -10,22 +10,17 @@ import numpy as np
 
 sys.path.append("./dev/")
 sys.path.append("./src/")
+sys.path.append("./")
 
-import concurrent.futures
-import itertools
 
+from config import LLM_URL, MARQO_URL, MARQO_URL_GPU
 from csv_helpers import write_pipe_results_to_csv
 from dataset_helpers import DatasetHelpers
-from drivers import pipe_single_setting_run
 from pipe import RagPipe
 from vector_store import VectorStore
 
-# Define API ENDPOINTS
-LLM_URL = "http://10.103.251.104:8040/v1"
+# Define LLM Name if necessary
 LLM_NAME = "llama3.1:latest"
-LLM_70B_NAME = "llama3.1:70b"
-MARQO_URL = "http://10.103.251.104:8882"
-MARQO_URL_GPU = "http://10.103.251.104:8880"
 
 ##
 ## Load Dataset

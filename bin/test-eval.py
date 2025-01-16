@@ -8,19 +8,9 @@ sys.path.append("./src/")
 
 import os
 
-from csv_helpers import read_pipe_results_from_csv
-from evaluate import evaluate
-from plot_helpers import plot_histogram
-
-sys.path.append("./dev/")
-sys.path.append("./src/")
-
-import logging
-
 from csv_helpers import (
     get_csv_files_from_dir,
 )
-from drivers import eval_single_pipe_result
 
 # Dataset
 dataset = "miniWiki"  # miniBiosQA, miniWiki

@@ -1,13 +1,10 @@
 # Test of rag evaluation
 # Imports
-import logging
 import os
 import sys
 import time
-from functools import partial
 
-import numpy as np
-
+sys.path.append("./")
 sys.path.append("./dev/")
 sys.path.append("./src/")
 
@@ -18,14 +15,6 @@ from csv_helpers import (
     write_eval_results_to_csv,
 )
 from evaluate import evaluate
-
-# Define API ENDPOINTS
-LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "llama3.1:latest"
-LLM_70B_NAME = "llama3.1:70b"
-MARQO_URL = "http://10.103.251.104:8882"
-MARQO_URL_GPU = "http://10.103.251.104:8880"
-
 
 ##
 ## Load file and define file path to write to

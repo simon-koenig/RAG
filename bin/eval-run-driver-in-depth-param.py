@@ -33,7 +33,7 @@ pipe_results_dir = "./pipe_results/triad/"  # triad
 pipe_results_file_names = get_csv_files_from_dir(pipe_results_dir)
 # Define directory for eval results
 eval_results_dir = f"./eval_results/{dataset}/{method}/{evaluator}/"
-eval_results_dir = f"./eval_results/triad_art/"  # triad
+eval_results_dir = "./eval_results/triad_art/"  # triad
 # Create the directory if it does not exist
 os.makedirs(eval_results_dir, exist_ok=True)
 

@@ -1,11 +1,5 @@
 # Imports
 import sys
-import threading
-import time
-from functools import partial
-from pprint import pprint
-
-import numpy as np
 
 sys.path.append("./dev/")
 sys.path.append("./src/")
@@ -21,17 +15,34 @@ from pipe import RagPipe
 
 
 def pipe_single_setting_run(
-    parameters,
-    queries,
-    ground_truths,
-    goldPassages,
-    documentDB,
-    LLM_URL,
-    LLM_NAME,
-    n_sample_queries,
-    write_to_dir,
-):
-    # Unpack parameter permuation
+    parameters: tuple,
+    queries: list,
+    ground_truths: list,
+    goldPassages: list,
+    documentDB: str,
+    LLM_URL: str,
+    LLM_NAME: str,
+    n_sample_queries: int,
+    write_to_dir: str,
+) -> None:
+    """
+    Run a single setting of the pipeline with the given parameters and data.
+
+    Args:
+        parameters (tuple): A tuple containing the pipeline configuration parameters.
+        queries (list): A list of queries to be processed by the pipeline.
+        ground_truths (list): A list of ground truth answers corresponding to the queries.
+        goldPassages (list): A list of gold passage IDs corresponding to the queries.
+        documentDB (str): The path to the document database.
+        LLM_URL (str): The URL of the language model.
+        LLM_NAME (str): The name of the language model.
+        n_sample_queries (int): The number of sample queries to be processed.
+        write_to_dir (str): The directory where the results will be written.
+
+    Returns:
+        None
+    """
+    # Unpack parameter permutation
     (
         query_expansion_val,
         rerank_val,
@@ -60,7 +71,7 @@ def pipe_single_setting_run(
     )
 
     # Run pipeline
-    # With slice of rag elements for dev. Slice is designed to take equally distrubuted queries up to n_sample_queries
+    # With slice of rag elements for dev. Slice is designed to take equally distributed queries up to n_sample_queries
     n_queries = len(queries)
     k = n_queries // n_sample_queries
     queries = queries[::k][:n_sample_queries]
@@ -76,13 +87,8 @@ def pipe_single_setting_run(
     )
 
     print("Pipeline run completed.")
-    # Print results
-    # for elem in pipe.rag_elements:
-    #    pprint(elem)
 
-    ##
     ##  Filename determines:  parameter setting.
-    ##
 
     csv_file_path = write_to_dir
     csv_file_path += f"quExp{query_expansion_val}_"
@@ -97,13 +103,28 @@ def pipe_single_setting_run(
 
 
 def eval_single_pipe_result(
-    pipe_results_file_name,
-    pipe_results_dir,
-    eval_results_dir,
-    select,
-    evaluator,
-    slice_for_dev,
-):
+    pipe_results_file_name: str,
+    pipe_results_dir: str,
+    eval_results_dir: str,
+    select: str,
+    evaluator: str,
+    slice_for_dev: int,
+) -> None:
+    """
+    Evaluate the results of a single pipeline run and write the evaluation results to a CSV file.
+
+    Args:
+        pipe_results_file_name (str): The name of the file containing the pipeline results.
+        pipe_results_dir (str): The directory where the pipeline results file is located.
+        eval_results_dir (str): The directory where the evaluation results should be written.
+        select (str): The selection criteria for evaluation.
+        evaluator (str): The evaluator to be used for evaluation.
+        slice_for_dev (int): The number of elements to slice from the pipeline results for development evaluation.
+
+    Returns:
+        None
+    """
+
     # Only look at files with quExp1_rerank1_cExpFalse_backRevFalse_numRef
     pipe_results_file = f"{pipe_results_dir}/{pipe_results_file_name}"
     # print(pipe_results_file)

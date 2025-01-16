@@ -1,30 +1,32 @@
 # Test of rag evaluation
 # Imports
+import configparser
 import logging
 import os
 import sys
 import time
 from functools import partial
 
-import numpy as np
-
 sys.path.append("./dev/")
 sys.path.append("./src/")
+sys.path.append("./")
 
-import concurrent.futures
+
 import itertools
 
+from config import LLM_URL, MARQO_URL, MARQO_URL_GPU
 from dataset_helpers import DatasetHelpers
 from drivers import pipe_single_setting_run
 from vector_store import VectorStore
 
-# Define API ENDPOINTS
-LLM_URL = "http://10.103.251.104:8040/v1"
-# LLM_NAME = "mixtral:latest"  #  ["llama3.1:latest", "llama3.2:latest", "gemma2:latest", "mixtral:latest"]
-MARQO_URL = "http://10.103.251.104:8882"
-MARQO_URL_GPU = "http://10.103.251.104:8880"
+print("Imports from config file:")
+print("LLM_URL:", LLM_URL)
+print("MARQO_URL:", MARQO_URL)
+print("MARQO_URL_GPU:", MARQO_URL_GPU)
 
-# Load QM queries
+# Define LLM Name if necessary
+# LLM_NAME = "llama3.1:latest"
+# Load queries
 datasetHelpers = DatasetHelpers()
 corpus_list, queries, ground_truths, goldPassages = (
     datasetHelpers.loadMiniBiosqa()
@@ -71,7 +73,7 @@ parameters = list(
 n_sample_queries = 100
 
 # Manually adjust this path to the desired output directory with the variable parameter
-write_to_dir = "./pipe_results/miniBiosQA/rerank/"
+write_to_dir = "./pipe_results/miniBiosQA/rerank1/"
 # make sure to create the directory before running the script
 os.makedirs(write_to_dir, exist_ok=True)
 

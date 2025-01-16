@@ -4,92 +4,117 @@ from datasets import load_dataset
 
 
 class DatasetHelpers:
-    # Helper functions for datasets
-    def __init__(self, chunking_params=None):
+    """
+    Helper functions for loading and processing various datasets for the RAG pipeline.
+    """
+
+    def __init__(self, chunking_params: dict = None):
+        """
+        Initialize the DatasetHelpers class.
+
+        Args:
+            chunking_params (dict, optional): Parameters for chunking the dataset. Defaults to None.
+        """
         self.chunking_params = chunking_params
 
-    def loadFromDocuments(self, documents):
-        # Load from a corpus of pdf documents
+    def loadFromDocuments(self, documents: list) -> None:
+        """
+        Load from a corpus of PDF documents.
+
+        Args:
+            documents (list): List of document paths.
+        """
         pass
 
-    def loadSQUAD(self):
-        # Load SQUAD dataset
+    def loadSQUAD(self) -> None:
+        """
+        Load the SQUAD dataset.
+        """
         pass
 
-    def loadTriviaQA(self):
-        # Load TriviaQA dataset
+    def loadTriviaQA(self) -> None:
+        """
+        Load the TriviaQA dataset.
+        """
         pass
 
-    def loadHotpotQA(self):
-        # Load HotpotQA dataset
+    def loadHotpotQA(self) -> None:
+        """
+        Load the HotpotQA dataset.
+        """
         pass
 
-    def loadNaturalQuestions(self):
-        # Load NaturalQuestions dataset
+    def loadNaturalQuestions(self) -> None:
+        """
+        Load the NaturalQuestions dataset.
+        """
         pass
 
-    def loadMiniWiki(self):
-        # Load MiniWiki dataset
+    def loadMiniWiki(self) -> tuple:
+        """
+        Load the MiniWiki dataset.
+
+        Returns:
+            tuple: A tuple containing the corpus list, queries, ground truths, and None.
+        """
         print("Loading MiniWiki dataset")
         corpus = load_dataset("rag-datasets/mini_wikipedia", "text-corpus")["passages"]
-        # Create a list of dictionaries with keys: passage, id
-        corpus_list = []
-        for passage, iD in zip(corpus["passage"], corpus["id"]):
-            corpus_list.append({"text": passage, "id": iD})
+        corpus_list = [
+            {"text": passage, "id": iD}
+            for passage, iD in zip(corpus["passage"], corpus["id"])
+        ]
 
         QA = load_dataset("rag-datasets/mini_wikipedia", "question-answer")["test"]
-
-        # Clean queries and ground truths and store them in lists
-        queries = []
-        ground_truths = []
-        for query, ground_truth in zip(QA["question"], QA["answer"]):
-            query = query.replace("\n", " ")
-            query = query.replace("\t", " ")
-            queries.append(query)
-            ground_truth = ground_truth.replace("\n", " ")
-            ground_truth = ground_truth.replace("\t", " ")
-            ground_truths.append(ground_truth)
+        queries = [
+            query.replace("\n", " ").replace("\t", " ") for query in QA["question"]
+        ]
+        ground_truths = [
+            ground_truth.replace("\n", " ").replace("\t", " ")
+            for ground_truth in QA["answer"]
+        ]
 
         return corpus_list, queries, ground_truths, None
 
-    def loadMiniBiosqa(self):
-        # Load MiniBioasq dataset
+    def loadMiniBiosqa(self) -> tuple:
+        """
+        Load the MiniBioasq dataset.
+
+        Returns:
+            tuple: A tuple containing the corpus list, queries, ground truths, and gold passages.
+        """
         print("Loading MiniBioasq dataset")
         corpus = load_dataset("enelpol/rag-mini-bioasq", "text-corpus")["test"]
-        # Create a list of dictionaries with keys: passage, id
-        corpus_list = []
-        for passage, iD in zip(corpus["passage"], corpus["id"]):
-            corpus_list.append({"text": passage, "id": iD})
+        corpus_list = [
+            {"text": passage, "id": iD}
+            for passage, iD in zip(corpus["passage"], corpus["id"])
+        ]
 
-        # Load QA dataset
         QA = load_dataset("enelpol/rag-mini-bioasq", "question-answer-passages")[
             "train"
         ]
-
-        # Clean queries and ground truths and store them in lists
-        queries = []
-        ground_truths = []
-        for query, ground_truth in zip(QA["question"], QA["answer"]):
-            query = query.replace("\n", " ")
-            query = query.replace("\t", " ")
-            queries.append(query)
-            ground_truth = ground_truth.replace("\n", " ")
-            ground_truth = ground_truth.replace("\t", " ")
-            ground_truths.append(ground_truth)
-
+        queries = [
+            query.replace("\n", " ").replace("\t", " ") for query in QA["question"]
+        ]
+        ground_truths = [
+            ground_truth.replace("\n", " ").replace("\t", " ")
+            for ground_truth in QA["answer"]
+        ]
         goldPassages = QA["relevant_passage_ids"]
 
         return corpus_list, queries, ground_truths, goldPassages
 
-    def loadQM(self):
-        # Load QM dataset
+    def loadQM(self) -> tuple:
+        """
+        Load the QM dataset.
+
+        Returns:
+            tuple: A tuple containing the corpus list, queries, and ground truths.
+        """
         print("Loading AIT QM dataset")
 
         corpus_list = None
-        queries = None
         ground_truths = None
 
-        # Skip the first row
         df = pd.read_excel("./data/100_questions.xlsx", skiprows=0, usecols=[1])
         queries = df.iloc[:, 0].tolist()
 

@@ -5,7 +5,16 @@ import os
 import pandas as pd
 
 
-def get_csv_files_from_dir(dir):
+def get_csv_files_from_dir(dir: str) -> list[str]:
+    """
+    Retrieves a list of CSV files from the specified directory.
+
+    Args:
+        dir (str): The path to the directory to search for CSV files.
+
+    Returns:
+        list[str]: A list of filenames (with .csv extension) found in the directory, sorted alphabetically.
+    """
     csv_files = []
     for file in sorted(os.listdir(dir)):
         if file.endswith(".csv"):
@@ -14,7 +23,7 @@ def get_csv_files_from_dir(dir):
     return csv_files
 
 
-def write_context_relevance_to_csv(filename, scores, evaluator):
+def write_context_relevance_to_csv(filename: str, scores: dict, evaluator: str) -> None:
     """
     Writes context relevance scores to a CSV file.
 
@@ -49,7 +58,7 @@ def write_context_relevance_to_csv(filename, scores, evaluator):
     print(f"Data written to {filename} successfully.")
 
 
-def write_faithfulness_to_csv(filename, scores, evaluator):
+def write_faithfulness_to_csv(filename: str, scores: dict, evaluator: str) -> None:
     """
     Writes faithfulness scores to a CSV file.
 
@@ -84,7 +93,7 @@ def write_faithfulness_to_csv(filename, scores, evaluator):
     print(f"Data written to {filename} successfully.")
 
 
-def write_answer_relevance_to_csv(filename, scores, evaluator):
+def write_answer_relevance_to_csv(filename: str, scores: dict, evaluator: str) -> None:
     """
     Writes answer relevance scores to a CSV file.
 
@@ -115,7 +124,7 @@ def write_answer_relevance_to_csv(filename, scores, evaluator):
     print(f"Data written to {filename} successfully.")
 
 
-def write_correctness_to_csv(filename, scores, evaluator):
+def write_correctness_to_csv(filename: str, scores: dict, evaluator: str) -> None:
     """
     Writes correctness scores to a CSV file.
 
@@ -146,7 +155,37 @@ def write_correctness_to_csv(filename, scores, evaluator):
     print(f"Data written to {filename} successfully.")
 
 
-def write_pipe_results_to_csv(data, filename):
+def write_pipe_results_to_csv(data: list[dict], filename: str) -> None:
+    """
+    Writes a list of dictionaries to a CSV file with specified column names.
+
+    Args:
+        data (list[dict]): A list of dictionaries containing the data to be written to the CSV file.
+            Each dictionary should have the following keys:
+                - "question" (str): The question text.
+                - "answer" (str): The answer text.
+                - "contexts" (list[str]): A list of context strings.
+                - "contexts_ids" (list[int]): A list of context IDs.
+                - "ground_truth" (str): The ground truth answer.
+                - "goldPassages" (list[str]): A list of gold passage strings (optional).
+
+        filename (str): The name of the CSV file to write the data to.
+
+    Returns:
+        None
+
+    Example:
+        data = [
+            {
+                "question": "What is AI?",
+                "answer": "Artificial Intelligence",
+                "contexts": ["Context 1", "Context 2"],
+                "contexts_ids": [1, 2],
+                "ground_truth": "Artificial Intelligence",
+                "goldPassages": [42, 43]
+            }
+        write_pipe_results_to_csv(data, "results.csv")
+    """
     print(f"Writing results to csv file: {filename}")
     # Define the column names
     fieldnames = [
@@ -179,8 +218,24 @@ def write_pipe_results_to_csv(data, filename):
     print(f"Data has been written to {filename}")
 
 
-# Function to get from rag results csv to pipe.rag_elements data structure
-def read_pipe_results_from_csv(filename):
+def read_pipe_results_from_csv(filename: str) -> list[dict]:
+    """
+    Reads pipe results from a CSV file and converts them into a list of dictionaries.
+    Each dictionary represents the results for a single query.
+
+    Args:
+        filename (str): The name of the CSV file to read the data from.
+
+    Returns:
+        list[dict]: A list of dictionaries containing the data read from the CSV file.
+            Each dictionary will have the following keys:
+                - "question" (str): The question text.
+                - "answer" (str): The answer text.
+                - "contexts" (list[str]): A list of context strings.
+                - "contexts_ids" (list[int]): A list of context IDs.
+                - "ground_truth" (str): The ground truth answer.
+                - "goldPassages" (list[int]): A list of gold passage IDs.
+    """
     # Initialize the list to store the data
     data = []
 
@@ -219,18 +274,30 @@ def read_pipe_results_from_csv(filename):
 
 
 def write_eval_results_to_csv(
-    eval_results,
-    eval_results_dir,
-    pipe_results_file,
-    select,
-    evaluator,
-    slice_for_dev=None,
-    write_context=False,
-):
-    ##
-    ## Instead of writing correctnos to a seperate csv file. Add it to the same csv file
-    ## and save as new eval results csv file
-    ##
+    eval_results: dict,
+    eval_results_dir: str,
+    pipe_results_file: str,
+    select: str,
+    evaluator: str,
+    slice_for_dev: int = None,
+    write_context: bool = False,
+) -> None:
+    """
+    Write evaluation results to a CSV file by adding correctness and other metrics to the existing CSV file.
+
+    Args:
+        eval_results (dict): A dictionary containing evaluation results with keys such as 'context_relevance',
+                             'faithfulness', 'answer_relevance', and 'correctness'.
+        eval_results_dir (str): The directory where the evaluation results CSV file will be saved.
+        pipe_results_file (str): The path to the existing CSV file containing pipeline results.
+        select (str): A string used to differentiate between different evaluation runs.
+        evaluator (str): The name of the evaluator used for the evaluation.
+        slice_for_dev (Optional[int], optional): An optional parameter to slice the data for development purposes. Defaults to None.
+        write_context (bool, optional): A flag indicating whether to include the 'contexts' column in the output CSV file. Defaults to False.
+
+    Returns:
+        None: This function does not return any value. It writes the updated DataFrame to a CSV file.
+    """
 
     # Get the pipe results file name
     print(f"Pipe results file: {pipe_results_file}")
@@ -263,8 +330,6 @@ def write_eval_results_to_csv(
     ar_results = eval_results.get("answer_relevance", None)
     correct_results = eval_results.get("correctness", None)
 
-    # print(f"CR Results: {cr_results}")
-    # print(f"Cr results type: {type(cr_results)}")
     # Check if the results are not None, if they are, set them to a default value
     if cr_results is None:
         cr_results = [None] * len(df)
