@@ -1,15 +1,11 @@
-# Parameter Development AI(T) Chatbot -- Under Developement
+# RAG - pipeline and evaluation
 
-This repository aims at building a comprehensive RAG system evaluation. The goal is to give easy to use paramter tuning for RAG systems.
+This repository provides a RAG ecosystem.  The goal is give the user tools to build and evaluate a costum RAG pipeline.
 
-Paramters can be tweaked and tuned with the help of 4 evalution metrics: 
-
-- Context Relevance
-- Answer Relevance
-- Faithfullness
-- Correctness
-
-TODO: Give brief explanation on metrics
+Tune paramters with the help of 3 evalution metrics: 
+- RAG Triad (Combining Context Relevance, Answer Relevance and Faithfulness) 
+- Answer correctness
+- Search results recall
 
 
 ## Requirements
@@ -18,26 +14,38 @@ Ubuntu 22.04.3
 - Run the following command to install the required packages:
 `pip install -r requirements.txt`
 
+## RAG pipeline
 
-## Dataset preparation
-Depending on the dataset you want to use. 
-Generic dataset import - under developement. 
-
-## Tunable parameters
-- Reranking of index search results
-- Enriching index search results with pre text and post text
-- Large language model
-- Temperature of large language model 
-
-
-## RAG system methodology
-
-- Index documents into vector database
+- Index documents to vector database
 - Ask query
 - Retrieve documents related to query from database
-- Define a prompt with instructions to an llm on how it should process information
-- Combine retrieved documents with query and send to llm 
-- Get llm answer based on the provided context
+- Define a prompt with instructions to an LLM on how it should process information
+- Combine retrieved documents with query and send to LLM 
+- Get LLM answer based on the provided context
+
+
+## RAG Evaluation
+
+Tune your system with the help of evalution metrics: 
+- RAG Triad (Combining Context Relevance, Answer Relevance and Faithfulness) 
+- Answer correctness
+- Search results recall
+
+Tunable parameters (among others):
+- Reranking of lexical and semantic search results
+- Context expansion
+- Query expansion
+- Number of sources
+- Large language model
+
+
+## Define your API Endpoints in your configuration file and copy to config.ini
+```console
+LLM_URL = 
+MARQO_URL = 
+RERANKER_ENDPOINT = 
+```
+
 
 ## Workflow example
 
@@ -51,12 +59,10 @@ from vector_store import VectorStore
 from evaluate import evaluate
 ```
 
-Define API ENDPOINTS, e.g.:
+Import API ENDPOINTS, e.g.:
 
 ```python
-LLM_URL = "http://10.103.251.104:8040/v1"
-LLM_NAME = "llama3"
-MARQO_URL = "http://10.103.251.104:8882"
+from config import LLM_URL, MARQO_URL, MARQO_URL_GPU
 ```
 
 Create vector database object:
@@ -64,8 +70,6 @@ Create vector database object:
 ```python
 documentDB = VectorStore(MARQO_URL)
 ```
-
-
 
 
 Connect Index
@@ -122,14 +126,17 @@ pipe.setConfigs(
     rerank=False,
     prepost_context=False,
     background_reversed=False,
-    search_ref_lex=2,
-    search_ref_sem=2,
+    search_ref_lex=8,
+    search_ref_sem=8,
     num_ref_lim=4,
     model_temp=0.1,
     answer_token_num=50,
 )
+```
 
-# queries = ["Who is him", "Who invented basketball?", "What is the temperature of the sun?"]
+Run the pipeline with a list of queries
+```python
+queries = ["Who is him", "Who invented basketball?", "What is the temperature of the sun?"]
 pipe.run(
         queries,
 )
@@ -146,8 +153,8 @@ Evaluate the results
 ```python
 methods = "context_relevance", "answer_relevance", "faithfulness", "correctness", "all"
 
-evaluator = "sem_similarity", "llm_judge", "ROUGE-1"
-scores = evaluate(method="all", evaluator="sem_similarity")
+evaluator = "llm_judge", "ROUGE-1"
+scores = evaluate(method="all", evaluator="ROUGE-1")
 
 print(scores)
 ```
@@ -155,7 +162,7 @@ print(scores)
 Write evaluation results to a csv file
 
 ```python
-write_correctness_to_csv("my-first-results", scores, evaluator="sem_similarity")
+write_correctness_to_csv(filename="my-first-results", scores=scores, evaluator="ROUGE-1")
 ```
 
 
@@ -207,12 +214,11 @@ documentDB.emptyIndex()
 
 
 ## Example run
+- If you have access to the AIT servers, you can run some of the scripts in bin/
 - Have a look at bin/example-rag.py 
 - Run `python3 bin/example-rag.py` from the root directory.
 
 
-
 ## License
-
 AIT internal use only !
-
+If you have any questions contact simon.koenig@ait.ac.at
