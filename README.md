@@ -222,4 +222,3 @@ documentDB.emptyIndex()
 ## License
 AIT internal use only !
 If you have any questions contact simon.koenig@ait.ac.at
-
